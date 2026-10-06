@@ -1,0 +1,12 @@
+node_modules/
+.env
+*.log
+.DS_Store
+logs/
+
+# Notes contenant des secrets (ne jamais versionner)
+GITHUB_SECRETS*.txt
+*.secrets
+
+# Réglages locaux de Claude Code
+.claude/settings.local.json

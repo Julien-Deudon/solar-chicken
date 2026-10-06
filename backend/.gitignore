@@ -1,0 +1,38 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+# Binaires compilés (ancrés à la racine du backend pour ne pas masquer cmd/server/)
+/solar-chicken
+/server
+/bin/
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite

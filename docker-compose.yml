@@ -1,0 +1,67 @@
+# Solar Chicken — installation self-hosted.
+# Lancer ./install.sh (génère .env avec des secrets neufs), ou : cp .env.example .env, remplir, docker compose up -d
+name: solar-chicken
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: solarchicken
+      POSTGRES_USER: solarchicken
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is missing - run ./install.sh}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solarchicken -d solarchicken"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  api:
+    image: ghcr.io/julien-deudon/solar-chicken-backend:${SOLAR_CHICKEN_VERSION:-latest}
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: solarchicken
+      DB_USER: solarchicken
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is missing - run ./install.sh}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is missing - run ./install.sh}
+      EXECUTION_MODE: ${EXECUTION_MODE:-live}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      HA_TOKEN: ${HA_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      APP_URL: ${APP_URL:-}
+    # Home Assistant sur la même machine : décommenter pour exposer /ha/state en local
+    # ports:
+    #   - "127.0.0.1:8095:8080"
+    logging: *logging
+
+  web:
+    image: ghcr.io/julien-deudon/solar-chicken-frontend:${SOLAR_CHICKEN_VERSION:-latest}
+    build:
+      context: ./frontend
+      args: { API_INTERNAL_URL: "http://api:8080" }
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "${SOLAR_CHICKEN_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+    logging: *logging
+
+volumes:
+  db-data:

@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --canvas: 231 239 246;   /* #E7EFF6 ciel brumeux */
+  --surface: 255 255 255;
+  --ink: 30 43 74;         /* #1E2B4A encre de nuit */
+  --muted: 84 99 122;      /* ardoise, contraste AA sur canvas */
+  --line: 205 217 229;
+  --sun: 245 185 53;       /* #F5B935 jaune d'œuf */
+  --ok: 37 112 80;         /* vert pré */
+  --alert: 192 45 38;      /* rouge crête */
+  --info: 214 227 241;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: 17 24 41;    /* nuit */
+    --surface: 27 37 63;
+    --ink: 233 238 247;
+    --muted: 160 173 197;
+    --line: 48 62 95;
+    --sun: 245 185 53;
+    --ok: 110 205 160;
+    --alert: 255 128 116;
+    --info: 36 50 84;
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-[-0.01em];
+  }
+  :focus-visible {
+    outline: 3px solid rgb(var(--sun));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Heures : chiffres tabulaires, dans la police des titres (zéro non barré). */
+  .tnum {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
