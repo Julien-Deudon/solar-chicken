@@ -66,6 +66,9 @@ func Connect(cfg Config, maxWait time.Duration) (*gorm.DB, error) {
 
 // Migrate crée ou met à jour le schéma v2.
 func Migrate(db *gorm.DB) error {
+	if err := fixRuleTimeColumns(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&models.User{},
 		&models.NotificationSettings{},
@@ -75,6 +78,30 @@ func Migrate(db *gorm.DB) error {
 		&models.PlannedEvent{},
 		&models.ActionLog{},
 	)
+}
+
+// fixRuleTimeColumns convertit en texte « HH:MM » les heures des règles (heure fixe, « pas avant »,
+// « pas après ») créées en timestamptz sous Postgres jusqu'à la v0.1.0 : la balise type:time était lue
+// par GORM comme une date complète et toute règle comportant une heure était refusée à l'écriture.
+func fixRuleTimeColumns(db *gorm.DB) error {
+	if db.Dialector.Name() != "postgres" {
+		return nil
+	}
+	for _, col := range []string{"open_fixed_time", "open_not_before", "open_not_after", "close_fixed_time", "close_not_before", "close_not_after"} {
+		var dataType string
+		if err := db.Raw(`SELECT data_type FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = 'rules' AND column_name = ?`, col).Scan(&dataType).Error; err != nil {
+			return err
+		}
+		if dataType != "timestamp with time zone" {
+			continue
+		}
+		sql := fmt.Sprintf(`ALTER TABLE rules ALTER COLUMN %[1]s TYPE varchar(5) USING to_char(%[1]s, 'HH24:MI')`, col)
+		if err := db.Exec(sql).Error; err != nil {
+			return fmt.Errorf("conversion de rules.%s : %w", col, err)
+		}
+	}
+	return nil
 }
 
 // EncryptExistingSecrets chiffre les secrets encore stockés en clair (installations d'avant le chiffrement).

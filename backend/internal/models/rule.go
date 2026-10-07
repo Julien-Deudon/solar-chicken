@@ -35,17 +35,17 @@ type Rule struct {
 
 	OpenAnchor        Anchor     `gorm:"type:varchar(20);not null" json:"openAnchor"`
 	OpenOffsetMinutes int        `gorm:"not null" json:"openOffsetMinutes"`
-	OpenFixedTime     *TimeOfDay `gorm:"type:time" json:"openFixedTime"`
+	OpenFixedTime     *TimeOfDay `gorm:"type:varchar(5)" json:"openFixedTime"`
 	OpenRefDeviceID   *uuid.UUID `gorm:"type:uuid" json:"openRefDeviceId"`
-	OpenNotBefore     *TimeOfDay `gorm:"type:time" json:"openNotBefore"`
-	OpenNotAfter      *TimeOfDay `gorm:"type:time" json:"openNotAfter"`
+	OpenNotBefore     *TimeOfDay `gorm:"type:varchar(5)" json:"openNotBefore"`
+	OpenNotAfter      *TimeOfDay `gorm:"type:varchar(5)" json:"openNotAfter"`
 
 	CloseAnchor        Anchor     `gorm:"type:varchar(20);not null" json:"closeAnchor"`
 	CloseOffsetMinutes int        `gorm:"not null" json:"closeOffsetMinutes"`
-	CloseFixedTime     *TimeOfDay `gorm:"type:time" json:"closeFixedTime"`
+	CloseFixedTime     *TimeOfDay `gorm:"type:varchar(5)" json:"closeFixedTime"`
 	CloseRefDeviceID   *uuid.UUID `gorm:"type:uuid" json:"closeRefDeviceId"`
-	CloseNotBefore     *TimeOfDay `gorm:"type:time" json:"closeNotBefore"`
-	CloseNotAfter      *TimeOfDay `gorm:"type:time" json:"closeNotAfter"`
+	CloseNotBefore     *TimeOfDay `gorm:"type:varchar(5)" json:"closeNotBefore"`
+	CloseNotAfter      *TimeOfDay `gorm:"type:varchar(5)" json:"closeNotAfter"`
 
 	// Lumière (seulement si l'appareil en possède une)
 	LightBeforeOpenMinutes  int  `gorm:"not null" json:"lightBeforeOpenMinutes"`

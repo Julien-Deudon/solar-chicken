@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// TimeOfDay représente une heure locale au format HH:MM (colonne SQL de type time).
+// TimeOfDay représente une heure locale au format HH:MM (colonne texte « HH:MM »).
 type TimeOfDay struct {
 	Hour   int
 	Minute int
@@ -54,7 +54,7 @@ func (t *TimeOfDay) Scan(value interface{}) error {
 
 // Value implémente driver.Valuer.
 func (t TimeOfDay) Value() (driver.Value, error) {
-	return fmt.Sprintf("%02d:%02d:00", t.Hour, t.Minute), nil
+	return t.String(), nil
 }
 
 func (t TimeOfDay) MarshalJSON() ([]byte, error) { return json.Marshal(t.String()) }
