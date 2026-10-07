@@ -21,8 +21,8 @@ décalages : *ouvrir 10 min avant le lever, fermer 20 min après le coucher*.
 ## Fonctions
 
 - **Horaires au lever et au coucher du soleil**, avec décalages et bornes (*jamais avant 08:00*).
-- **Plusieurs portes par poulailler**, avec des règles relatives : le pondoir s'ouvre 30 min après la
-  porte principale et se ferme 1 h avant le coucher, pour que les poules n'y dorment pas.
+- **Plusieurs portes par poulailler**, avec des règles relatives : par défaut, le pondoir s'ouvre avec la
+  porte principale et se ferme 2 h avant elle, pour que les poules n'y dorment pas. Chaque règle se modifie dans l'appli.
 - **Ça continue quand quelque chose lâche** : chaque nuit, les horaires du jour sont écrits dans le
   boîtier de chaque porte, qui s'ouvre et se ferme même si ton serveur, ton Wi-Fi ou internet tombe.
 - **Chaque action est vérifiée** : si une porte n'a pas bougé, Solar Chicken relance puis t'alerte sur

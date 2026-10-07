@@ -50,6 +50,10 @@ function at(day, hhmm, offsetHours = 2) {
   return new Date(Date.UTC(y, mo - 1, d, h - offsetHours, m)).toISOString();
 }
 
+/** Règle proposée pour un pondoir, comme le serveur : avec la porte principale, fermeture 2 h avant elle. */
+const nestDefaultRule = (id, mainId) => mainId
+  ? { ...defaultRule(id), openAnchor: 'device_open', openRefDeviceId: mainId, openOffsetMinutes: 0, closeAnchor: 'device_close', closeRefDeviceId: mainId, closeOffsetMinutes: -120 }
+  : { ...defaultRule(id), closeOffsetMinutes: -100 };
 const defaultRule = (id) => ({ id: 'r-' + id, deviceId: id, openAnchor: 'sunrise', openOffsetMinutes: -10, openFixedTime: null, openRefDeviceId: null, openNotBefore: null, openNotAfter: null, closeAnchor: 'sunset', closeOffsetMinutes: 20, closeFixedTime: null, closeRefDeviceId: null, closeNotBefore: null, closeNotAfter: null, lightBeforeOpenMinutes: 0, lightBeforeCloseMinutes: 0, enableLightMorning: false, enableLightEvening: false, lightOffDelayMinutes: 0 });
 
 let devices = FRESH ? [] : [
@@ -302,7 +306,7 @@ http.createServer((req, res) => {
       const id = `55555555-5555-4555-8555-${String(now()).slice(-12)}`;
       const isFeeder = body.role === 'feeder';
       const dev = { id, coopId: COOP_ID, omletDeviceId: body.omletDeviceId, deviceType: isFeeder ? 'Feeder' : 'Autodoor', role: body.role, name: body.name || 'Nouveau', strategy: body.strategy || 'command', hasLight: body.omletDeviceId === 'omlet-main', enabled: true, position: devices.length, createdAt: new Date(now()).toISOString(), updatedAt: new Date(now()).toISOString(),
-        rule: isFeeder ? null : defaultRule(id) };
+        rule: isFeeder ? null : body.role === 'nest_box' ? nestDefaultRule(id, main && main.id) : defaultRule(id) };
       devices.push(dev);
       return send(res, 201, dev);
     }

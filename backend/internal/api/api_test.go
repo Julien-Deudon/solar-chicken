@@ -190,7 +190,10 @@ func TestDiscoverAndAddNestBox(t *testing.T) {
 		t.Fatalf("ajout pondoir : %d %v", code, dev)
 	}
 	rule := dev["rule"].(map[string]interface{})
-	if rule["openAnchor"] != "device_open" || rule["openRefDeviceId"] != e.main.ID.String() || rule["openNotBefore"] != "08:00" || rule["closeOffsetMinutes"].(float64) != -60 {
+	// Par défaut : s'ouvre avec la porte principale, se ferme 2 h avant elle.
+	if rule["openAnchor"] != "device_open" || rule["openRefDeviceId"] != e.main.ID.String() || rule["openOffsetMinutes"].(float64) != 0 ||
+		rule["openNotBefore"] != nil || rule["closeAnchor"] != "device_close" || rule["closeRefDeviceId"] != e.main.ID.String() ||
+		rule["closeOffsetMinutes"].(float64) != -120 {
 		t.Fatalf("règle par défaut du pondoir : %v", rule)
 	}
 	if code, _, _ := e.do("POST", "/api/v2/coops/"+cid+"/devices", map[string]string{"omletDeviceId": "N1", "role": "nest_box"}, e.token); code != http.StatusConflict {

@@ -21,8 +21,8 @@ and sunset for your coop every day and runs your doors from them, with your own 
 ## Features
 
 - **Sunrise and sunset schedules** with offsets and limits (*never before 08:00*).
-- **Several doors per coop**, with rules relative to each other: the nest box opens 30 min after the
-  main door and closes 1 h before sunset, so hens don't sleep in it.
+- **Several doors per coop**, with rules relative to each other: by default the nest box opens with the
+  main door and closes 2 h before it, so hens don't sleep in it. Every rule can be changed in the app.
 - **Keeps working when things break**: every night the day's times are written into each door's own
   control unit, so the door still opens and closes if your server, Wi-Fi or internet is down.
 - **Every action is checked**: if a door didn't move, Solar Chicken retries, then warns you on Telegram.

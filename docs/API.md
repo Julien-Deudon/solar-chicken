@@ -110,8 +110,9 @@ Outside `/api/v2`:
   - `command`: the server sends open/close at the exact time, checks, retries and alerts.
   - `monitor` (default for feeders): status only.
 - Anchors: `sunrise`/`sunset` plus an offset in minutes (negative = before), `fixed` (time of day),
-  `device_open`/`device_close` (relative to another door of the same coop, e.g. nest box = main door + 30 min).
-- Optional bounds `NotBefore`/`NotAfter` (e.g. nest box never before 08:00).
+  `device_open`/`device_close` (relative to another door of the same coop). Default nest box rule: opens with
+  the main door (`device_open` + 0) and closes 2 h before it (`device_close` − 120); every rule can be edited.
+- Optional bounds `NotBefore`/`NotAfter` (e.g. never before 08:00).
 - Light: only for devices with `hasLight` and the `command` strategy.
 - Statuses: `pending` upcoming, `sent` sent and being checked, `confirmed` done and checked, `failed` failed
   (alert sent), `skipped` not done (see `note`), `shadow` simulated.

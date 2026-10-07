@@ -11,27 +11,36 @@ func DefaultStrategy(role DeviceRole) Strategy {
 	return StrategyOnboard
 }
 
-// DefaultRule retourne la règle proposée à l'ajout d'un appareil.
-// Pondoir : ouvre 30 min après la porte principale (pas avant 08:00), ferme 1 h avant le coucher.
+// Règle proposée à l'ajout d'une porte : 10 min avant le lever, 20 min après le coucher.
+const (
+	defaultOpenOffset  = -10
+	defaultCloseOffset = 20
+	// Le pondoir se ferme 2 h avant la porte principale, pour que les poules n'y dorment pas.
+	nestBoxCloseEarly = 120
+)
+
+// DefaultRule retourne la règle proposée à l'ajout d'un appareil ; elle se modifie ensuite dans ses réglages.
+// Pondoir : s'ouvre avec la porte principale et se ferme 2 h avant elle ; sans porte principale,
+// les mêmes horaires calculés directement sur le soleil.
 func DefaultRule(role DeviceRole, hasLight bool, mainDoor *uuid.UUID) *Rule {
 	switch role {
 	case RoleFeeder:
 		return nil
 	case RoleNestBox:
 		r := &Rule{
-			OpenAnchor: AnchorSunrise, OpenOffsetMinutes: 40,
-			OpenNotBefore: &TimeOfDay{Hour: 8},
-			CloseAnchor:   AnchorSunset, CloseOffsetMinutes: -60,
+			OpenAnchor: AnchorSunrise, OpenOffsetMinutes: defaultOpenOffset,
+			CloseAnchor: AnchorSunset, CloseOffsetMinutes: defaultCloseOffset - nestBoxCloseEarly,
 		}
 		if mainDoor != nil {
-			id := *mainDoor
-			r.OpenAnchor, r.OpenOffsetMinutes, r.OpenRefDeviceID = AnchorDeviceOpen, 30, &id
+			openRef, closeRef := *mainDoor, *mainDoor
+			r.OpenAnchor, r.OpenOffsetMinutes, r.OpenRefDeviceID = AnchorDeviceOpen, 0, &openRef
+			r.CloseAnchor, r.CloseOffsetMinutes, r.CloseRefDeviceID = AnchorDeviceClose, -nestBoxCloseEarly, &closeRef
 		}
 		return r
 	default:
 		r := &Rule{
-			OpenAnchor: AnchorSunrise, OpenOffsetMinutes: -10,
-			CloseAnchor: AnchorSunset, CloseOffsetMinutes: 20,
+			OpenAnchor: AnchorSunrise, OpenOffsetMinutes: defaultOpenOffset,
+			CloseAnchor: AnchorSunset, CloseOffsetMinutes: defaultCloseOffset,
 		}
 		if hasLight {
 			r.LightBeforeOpenMinutes, r.EnableLightMorning, r.EnableLightEvening = 2, true, true

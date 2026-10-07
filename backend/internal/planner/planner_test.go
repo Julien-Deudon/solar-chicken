@@ -87,6 +87,35 @@ func TestKnownTargetsAroundArras(t *testing.T) {
 	}
 }
 
+// Règle par défaut du pondoir : il s'ouvre avec la porte principale et se ferme 2 h avant elle
+// (à 30 s près : son boîtier ne garde que HH:MM, l'heure est arrondie à la minute la plus proche) ;
+// sans porte principale, les mêmes horaires calculés sur le soleil.
+func TestDefaultNestBoxRuleFollowsMainDoor(t *testing.T) {
+	paris, _ := time.LoadLocation("Europe/Paris")
+	coop := &models.Coop{Latitude: 50.4, Longitude: 2.8, Timezone: "Europe/Paris"}
+	mainID, nestID := uuid.New(), uuid.New()
+	rule := models.DefaultRule(models.RoleNestBox, false, &mainID)
+	rule.DeviceID = nestID
+	nest := models.Device{ID: nestID, DeviceType: "Autodoor", Role: models.RoleNestBox, Name: "Pondoir",
+		Strategy: models.StrategyOnboard, Enabled: true, Rule: rule}
+	for day := 0; day < 365; day += 7 {
+		p, err := PlanDay(coop, []models.Device{nest, mainDoor(mainID)}, time.Date(2026, 10, 8+day, 12, 0, 0, 0, paris))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := find(t, p, nestID, models.EventOpen).Sub(find(t, p, mainID, models.EventOpen)); d.Abs() > 30*time.Second {
+			t.Fatalf("%s : pondoir ouvert %s après la porte", p.Day, d)
+		}
+		if d := find(t, p, nestID, models.EventClose).Sub(find(t, p, mainID, models.EventClose).Add(-2 * time.Hour)); d.Abs() > 30*time.Second {
+			t.Fatalf("%s : fermeture du pondoir décalée de %s par rapport à « 2 h avant la porte »", p.Day, d)
+		}
+	}
+	alone := models.DefaultRule(models.RoleNestBox, false, nil)
+	if alone.OpenAnchor != models.AnchorSunrise || alone.OpenOffsetMinutes != -10 || alone.CloseAnchor != models.AnchorSunset || alone.CloseOffsetMinutes != -100 {
+		t.Fatalf("pondoir sans porte principale : %+v", alone)
+	}
+}
+
 func TestNestBoxRelativeToMainDoor(t *testing.T) {
 	paris, _ := time.LoadLocation("Europe/Paris")
 	coop := &models.Coop{Latitude: 50.4, Longitude: 2.8, Timezone: "Europe/Paris"}
