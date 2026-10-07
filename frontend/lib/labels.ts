@@ -23,8 +23,7 @@ export const ANCHORS: Anchor[] = ['sunrise', 'sunset', 'fixed', 'device_open', '
 
 /** Stratégie conseillée pour un rôle (identique au serveur). */
 export function defaultStrategy(role: DeviceRole): Strategy {
-  if (role === 'nest_box') return 'onboard';
-  if (role === 'feeder') return 'monitor';
+  if (role === 'nest_box' || role === 'feeder') return 'onboard';
   return 'command';
 }
 

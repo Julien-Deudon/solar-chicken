@@ -16,7 +16,6 @@ import { doorPhase, nextEvent, phaseSentence, stateFromStatus, whenText } from '
 import { useDeviceContext, useDeviceStatus, useNow, usePolling } from '@/lib/hooks';
 import { useI18n, type TFunction } from '@/lib/i18n';
 import { faultLabel, logActionLabel, roleLabel, triggerLabel } from '@/lib/labels';
-import { isDoor } from '@/lib/rule';
 import { capitalize, dayKey, formatDateShort, formatTime, formatWhen } from '@/lib/time';
 import type { ActionLog, DeviceStatus } from '@/types';
 
@@ -132,7 +131,6 @@ function DeviceScreen() {
   if (!device || !coop) return <PageLoader label={t('common.deviceLoading')} />;
 
   const tz = coop.coop.timezone;
-  const door = isDoor(device);
   const state = live.status ? stateFromStatus(live.status) : coop.states?.[device.id];
   const phase = doorPhase(state?.door, state?.fault);
   const days = [coop.today, coop.tomorrow];
@@ -171,35 +169,31 @@ function DeviceScreen() {
         {live.error && !live.status && <p className="mt-2 text-[15px] text-muted">{t('devicePage.liveUnavailable', { error: live.error })}</p>}
       </div>
 
-      {door && (
-        <section aria-label={t('devicePage.controls')} className="space-y-2">
-          <ManualActions device={device} mode={coop.mode} onDone={afterAction} />
-          {coop.mode === 'shadow' && <p className="px-1 text-sm text-muted">{t('devicePage.shadowNote')}</p>}
-        </section>
-      )}
+      <section aria-label={t('devicePage.controls')} className="space-y-2">
+        <ManualActions device={device} mode={coop.mode} onDone={afterAction} />
+        {coop.mode === 'shadow' && <p className="px-1 text-sm text-muted">{t('devicePage.shadowNote')}</p>}
+      </section>
 
-      {door && (
-        <section aria-labelledby="rule-title">
-          <SectionTitle
-            id="rule-title"
-            action={
-              <Link href={`/devices/${device.id}/settings`} className="rounded-xl px-2 py-1.5 text-[15px] font-bold text-muted hover:bg-ink/5 hover:text-ink">
-                {t('common.edit')}
-              </Link>
-            }
-          >
-            {t('devicePage.schedule')}
-          </SectionTitle>
-          <div className="space-y-4 rounded-sheet bg-surface p-4 sm:p-5">
-            <RuleSummary device={device} devices={coop.devices} />
-            {device.strategy === 'onboard' && (
-              <div className="border-t border-line/60 pt-4">
-                <OnboardInfo device={device} timeZone={tz} mode={coop.mode} now={now} />
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+      <section aria-labelledby="rule-title">
+        <SectionTitle
+          id="rule-title"
+          action={
+            <Link href={`/devices/${device.id}/settings`} className="rounded-xl px-2 py-1.5 text-[15px] font-bold text-muted hover:bg-ink/5 hover:text-ink">
+              {t('common.edit')}
+            </Link>
+          }
+        >
+          {t('devicePage.schedule')}
+        </SectionTitle>
+        <div className="space-y-4 rounded-sheet bg-surface p-4 sm:p-5">
+          <RuleSummary device={device} devices={coop.devices} />
+          {device.strategy === 'onboard' && (
+            <div className="border-t border-line/60 pt-4">
+              <OnboardInfo device={device} timeZone={tz} mode={coop.mode} now={now} />
+            </div>
+          )}
+        </div>
+      </section>
 
       <section aria-labelledby="state-title">
         <SectionTitle

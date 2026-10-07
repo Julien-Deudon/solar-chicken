@@ -43,6 +43,14 @@ func (f *fakeOmlet) add(id, state string, light bool) {
 	f.devices[id] = d
 }
 
+// addFeeder ajoute une mangeoire sur piles (couvercle dans l'état donné).
+func (f *fakeOmlet) addFeeder(id, state string) {
+	f.devices[id] = &omlet.Device{DeviceID: id, DeviceType: "Feeder", State: omlet.DeviceState{
+		General: omlet.StateGeneral{PowerSource: "battery"},
+		Feeder:  &omlet.StateFeeder{State: state, Fault: "none", FeedLevel: 60},
+	}}
+}
+
 func (f *fakeOmlet) door(id string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -84,8 +92,14 @@ func (f *fakeOmlet) GetDevice(ctx context.Context, id string) (*omlet.Device, er
 		return nil, f.getErr
 	}
 	d := *f.devices[id]
-	door := *d.State.Door
-	d.State.Door = &door
+	if d.State.Door != nil {
+		door := *d.State.Door
+		d.State.Door = &door
+	}
+	if d.State.Feeder != nil {
+		feeder := *d.State.Feeder
+		d.State.Feeder = &feeder
+	}
 	return &d, nil
 }
 
@@ -93,22 +107,26 @@ func (f *fakeOmlet) Action(ctx context.Context, id, action string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.actions = append(f.actions, id+":"+action)
+	d := f.devices[id]
 	switch f.behavior[id] {
 	case "ignore":
 	case "fault":
-		f.devices[id].State.Door.Fault = "blocked"
+		if d.State.Door != nil {
+			d.State.Door.Fault = "blocked"
+		}
 	default:
-		switch action {
-		case "open":
-			f.devices[id].State.Door.State = "open"
-		case "close":
-			f.devices[id].State.Door.State = "closed"
+		state := map[string]string{"open": "open", "close": "closed"}[action]
+		if state != "" && d.State.Door != nil {
+			d.State.Door.State = state
+		}
+		if state != "" && d.State.Feeder != nil {
+			d.State.Feeder.State = state
 		}
 	}
 	return nil
 }
 
-func (f *fakeOmlet) SetDoorTimes(ctx context.Context, id, open, close string) error {
+func (f *fakeOmlet) SetTimes(ctx context.Context, id, open, close string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.setTimes = append(f.setTimes, fmt.Sprintf("%s:%s-%s", id, open, close))
@@ -337,8 +355,8 @@ func TestNestBoxOnboardScheduleExecutedByBox(t *testing.T) {
 	if n := b.om.count("N1:"); n != 0 {
 		t.Fatalf("le serveur a commandé le pondoir alors que le boîtier l'a fait : %v", b.om.actions)
 	}
-	if ev := b.event(b.nest, models.EventOpen); ev.Status != models.StatusConfirmed {
-		t.Fatalf("pondoir : statut %s", ev.Status)
+	if ev := b.event(b.nest, models.EventOpen); ev.Status != models.StatusConfirmed || ev.Note != "fait par le boîtier" {
+		t.Fatalf("pondoir : statut %s, note %q", ev.Status, ev.Note)
 	}
 	if b.notif.with("Pondoir</b> ouvert à") != 1 {
 		t.Fatalf("notification pondoir attendue : %v", b.notif.msgs)
@@ -359,6 +377,40 @@ func TestNestBoxFallbackWhenBoxDoesNothing(t *testing.T) {
 	}
 	if ev := b.event(b.nest, models.EventOpen); ev.Status != models.StatusConfirmed {
 		t.Fatalf("statut %s", ev.Status)
+	}
+}
+
+// Mangeoire programmée : horaires écrits dans son boîtier (ouverture avec la porte principale, fermeture
+// au coucher) ; son couvercle ne se ferme pas tout seul → commande de secours du serveur, puis confirmation.
+func TestFeederOnboardScheduleWithFallback(t *testing.T) {
+	b := newBench(t, ModeLive, false)
+	feeder := models.Device{CoopID: b.coop.ID, OmletDeviceID: "F1", DeviceType: "Feeder", Role: models.RoleFeeder, Name: "Mangeoire",
+		Strategy: models.StrategyOnboard, Enabled: true, Position: 1}
+	b.e.DB.Create(&feeder)
+	rule := models.DefaultRule(models.RoleFeeder, false, &b.main.ID)
+	rule.DeviceID = feeder.ID
+	b.e.DB.Create(rule)
+	b.om.addFeeder("F1", "closed")
+	b.e.Replan(context.Background())
+	b.run(8, 0)
+	b.om.mu.Lock()
+	synced := strings.Join(b.om.setTimes, ",")
+	b.om.mu.Unlock()
+	if !strings.HasPrefix(synced, "F1:") || strings.Count(synced, "F1:") != 1 {
+		t.Fatalf("horaires de la mangeoire écrits : %q", synced)
+	}
+	b.om.mu.Lock()
+	b.om.devices["F1"].State.Feeder.State = "open" // le boîtier a ouvert à l'heure
+	b.om.mu.Unlock()
+	b.run(20, 30)
+	if n := b.om.count("F1:close"); n != 1 {
+		t.Fatalf("commande de secours pour la mangeoire : %d (%v)", n, b.om.actions)
+	}
+	if ev := b.event(feeder, models.EventClose); ev.Status != models.StatusConfirmed {
+		t.Fatalf("fermeture de la mangeoire : statut %s (%s)", ev.Status, ev.Note)
+	}
+	if b.notif.with("Mangeoire") == 0 || b.notif.with("n'a pas exécuté") == 0 {
+		t.Fatalf("avertissement attendu pour la mangeoire : %v", b.notif.msgs)
 	}
 }
 

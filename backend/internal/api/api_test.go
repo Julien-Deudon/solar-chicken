@@ -51,7 +51,7 @@ func (f *fakeOmlet) Action(ctx context.Context, id, action string) error {
 	f.actions = append(f.actions, id+":"+action)
 	return nil
 }
-func (f *fakeOmlet) SetDoorTimes(ctx context.Context, id, o, c string) error { return nil }
+func (f *fakeOmlet) SetTimes(ctx context.Context, id, o, c string) error { return nil }
 
 type env struct {
 	t      *testing.T
@@ -202,9 +202,26 @@ func TestDiscoverAndAddNestBox(t *testing.T) {
 	if code, _, _ := e.do("POST", "/api/v2/coops/"+cid+"/devices", map[string]string{"omletDeviceId": "F1", "role": "main_door"}, e.token); code != http.StatusBadRequest {
 		t.Fatalf("mangeoire en porte principale : %d, attendu 400", code)
 	}
+	if code, _, _ := e.do("POST", "/api/v2/coops/"+cid+"/devices", map[string]string{"omletDeviceId": "F1", "role": "feeder", "strategy": "command"}, e.token); code != http.StatusBadRequest {
+		t.Fatalf("mangeoire commandée par le serveur : %d, attendu 400 (elle se met en veille)", code)
+	}
+	// Mangeoire : horaires dans son boîtier, s'ouvre avec la porte principale, se ferme au coucher du soleil.
 	code, feeder, _ := e.do("POST", "/api/v2/coops/"+cid+"/devices", map[string]string{"omletDeviceId": "F1", "role": "feeder"}, e.token)
-	if code != http.StatusCreated || feeder["strategy"] != "monitor" || feeder["rule"] != nil {
+	frule, _ := feeder["rule"].(map[string]interface{})
+	if code != http.StatusCreated || feeder["strategy"] != "onboard" || frule == nil || frule["openAnchor"] != "device_open" ||
+		frule["openRefDeviceId"] != e.main.ID.String() || frule["closeAnchor"] != "sunset" || frule["closeOffsetMinutes"].(float64) != 0 {
 		t.Fatalf("mangeoire : %d %v", code, feeder)
+	}
+	// Une mangeoire ajoutée avant (surveillée, sans règle) reçoit la règle par défaut en passant aux horaires.
+	fid := feeder["id"].(string)
+	e.db.Where("device_id = ?", fid).Delete(&models.Rule{})
+	e.db.Model(&models.Device{}).Where("id = ?", fid).Update("strategy", models.StrategyMonitor)
+	code, feeder, _ = e.do("PUT", "/api/v2/devices/"+fid, map[string]string{"strategy": "onboard"}, e.token)
+	if frule, _ = feeder["rule"].(map[string]interface{}); code != http.StatusOK || feeder["strategy"] != "onboard" || frule == nil || frule["closeAnchor"] != "sunset" {
+		t.Fatalf("mangeoire passée aux horaires : %d %v", code, feeder)
+	}
+	if code, _, _ := e.do("PUT", "/api/v2/devices/"+fid, map[string]string{"strategy": "command"}, e.token); code != http.StatusBadRequest {
+		t.Fatalf("mangeoire en commande : %d, attendu 400", code)
 	}
 	// Le planning du jour contient maintenant le pondoir
 	_, obj, _ := e.do("GET", "/api/v2/coops/"+cid, nil, e.token)
@@ -216,6 +233,15 @@ func TestDiscoverAndAddNestBox(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("pondoir : %d événements aujourd'hui, attendu 2", n)
+	}
+	n = 0
+	for _, ev := range obj["today"].(map[string]interface{})["events"].([]interface{}) {
+		if ev.(map[string]interface{})["deviceId"] == fid {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("mangeoire : %d événements aujourd'hui, attendu 2 (ouverture, fermeture)", n)
 	}
 }
 

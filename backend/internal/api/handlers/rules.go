@@ -28,8 +28,8 @@ func (a *API) checkRule(c *gin.Context, coop *models.Coop, dev *models.Device, r
 	if err := rule.ValidateLang(lang(c)); err != nil {
 		return nil, err.Error()
 	}
-	if !dev.IsDoor() {
-		return nil, tr(c, "seules les portes ont des horaires", "only doors have schedules")
+	if !dev.Opens() {
+		return nil, tr(c, "seules les portes et les mangeoires ont des horaires", "only doors and feeders have schedules")
 	}
 	for _, ref := range []*models.Moment{ptr(rule.Open()), ptr(rule.Close())} {
 		if ref.RefDeviceID == nil || (ref.Anchor != models.AnchorDeviceOpen && ref.Anchor != models.AnchorDeviceClose) {

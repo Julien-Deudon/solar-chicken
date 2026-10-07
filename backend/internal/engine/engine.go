@@ -33,7 +33,7 @@ type Omlet interface {
 	ListDevices(ctx context.Context) ([]omlet.Device, error)
 	GetDevice(ctx context.Context, deviceID string) (*omlet.Device, error)
 	Action(ctx context.Context, deviceID, action string) error
-	SetDoorTimes(ctx context.Context, deviceID, openTime, closeTime string) error
+	SetTimes(ctx context.Context, deviceID, openTime, closeTime string) error
 }
 
 // Notifier envoie les messages à l'utilisateur (Telegram).
@@ -342,8 +342,8 @@ func (e *Engine) shadow(ctx context.Context, coop *models.Coop, dev *models.Devi
 	}
 	observed := ""
 	if ev.Action.IsDoor() {
-		if d, err := e.Clients(coop.OmletAPIKey).GetDevice(ctx, dev.OmletDeviceID); err == nil && d.State.Door != nil {
-			observed = t(coop, " ; porte : ", "; door: ") + d.State.Door.State
+		if d, err := e.Clients(coop.OmletAPIKey).GetDevice(ctx, dev.OmletDeviceID); err == nil && d.OpenState() != "" {
+			observed = t(coop, " ; "+partName(coop, dev)+" : ", "; "+partName(coop, dev)+": ") + d.OpenState()
 		} else if err != nil {
 			observed = t(coop, " ; lecture Omlet impossible : ", "; could not read Omlet: ") + err.Error()
 		}
@@ -387,9 +387,9 @@ func (e *Engine) startDoor(ctx context.Context, coop *models.Coop, dev *models.D
 			next = e.now()
 		}
 		sent := e.now()
-		e.DB.Model(ev).Updates(map[string]interface{}{"status": models.StatusSent, "sent_at": sent, "next_check_at": next,
-			"note": "en attente de l'horaire du boîtier"})
-		ev.Status, ev.SentAt, ev.NextCheckAt = models.StatusSent, &sent, &next
+		note := t(coop, "en attente de l'horaire du boîtier", "waiting for the unit's schedule")
+		e.DB.Model(ev).Updates(map[string]interface{}{"status": models.StatusSent, "sent_at": sent, "next_check_at": next, "note": note})
+		ev.Status, ev.SentAt, ev.NextCheckAt, ev.Note = models.StatusSent, &sent, &next, note
 		return
 	}
 
@@ -436,7 +436,7 @@ func (e *Engine) send(ctx context.Context, coop *models.Coop, dev *models.Device
 		}
 		deadlines.Delete(ev.ID)
 		e.finish(ev, models.StatusFailed, t(coop, "commande refusée", "command refused"), err.Error())
-		e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s impossible (%s). Vérifie la porte !", "🚨 <b>%s</b>: %s failed (%s). Check the door!"), dev.Name, label(coop, ev.Action), short(err)))
+		e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s impossible (%s). Vérifie "+partArticle(coop, dev)+" !", "🚨 <b>%s</b>: %s failed (%s). Check the "+partName(coop, dev)+"!"), dev.Name, label(coop, ev.Action), short(err)))
 		return
 	}
 	extra := time.Duration(0)
@@ -484,15 +484,19 @@ func (e *Engine) verifyDoor(ctx context.Context, coop *models.Coop, dev *models.
 	d, err := e.Clients(coop.OmletAPIKey).GetDevice(ctx, dev.OmletDeviceID)
 	if err == nil && d.DoorIs(want) {
 		deadlines.Delete(ev.ID)
-		e.finish(ev, models.StatusConfirmed, ev.Note, "")
+		note := ev.Note
+		if ev.Strategy == models.StrategyOnboard && ev.Attempts == 0 {
+			note = t(coop, "fait par le boîtier", "done by the unit")
+		}
+		e.finish(ev, models.StatusConfirmed, note, "")
 		e.notifyDone(ctx, coop, dev, ev, catchup, false)
 		return
 	}
 	if err == nil {
 		if f := d.DoorFault(); f != "" {
 			deadlines.Delete(ev.ID)
-			e.finish(ev, models.StatusFailed, t(coop, "défaut porte : ", "door fault: ")+f, f)
-			e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s impossible, défaut « %s ». Vérifie la porte.", "🚨 <b>%s</b>: %s impossible, fault “%s”. Check the door."), dev.Name, label(coop, ev.Action), f))
+			e.finish(ev, models.StatusFailed, t(coop, "défaut "+partName(coop, dev)+" : ", partName(coop, dev)+" fault: ")+f, f)
+			e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s impossible, défaut « %s ». Vérifie "+partArticle(coop, dev)+".", "🚨 <b>%s</b>: %s impossible, fault “%s”. Check the "+partName(coop, dev)+"."), dev.Name, label(coop, ev.Action), f))
 			return
 		}
 	}
@@ -529,8 +533,8 @@ func (e *Engine) verifyDoor(ctx context.Context, coop *models.Coop, dev *models.
 	reason := t(coop, "non "+doneLabel(coop, dev, ev.Action)+" après "+fmt.Sprint(ev.Attempts)+" envoi(s)", "not "+doneLabel(coop, dev, ev.Action)+" after "+fmt.Sprint(ev.Attempts)+" attempt(s)")
 	if err != nil {
 		reason = t(coop, "état illisible : ", "state unreadable: ") + short(err)
-	} else if d.State.Door != nil {
-		reason += t(coop, " (état : ", " (state: ") + d.State.Door.State + ")"
+	} else if s := d.OpenState(); s != "" {
+		reason += t(coop, " (état : ", " (state: ") + s + ")"
 	}
 	e.finish(ev, models.StatusFailed, reason, reason)
 	e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s non confirmée, %s. Vérifie sur place !", "🚨 <b>%s</b>: %s not confirmed, %s. Check on site!"), dev.Name, label(coop, ev.Action), reason))
@@ -628,6 +632,19 @@ func inLoc(coop *models.Coop, t time.Time) time.Time {
 func hhmm(coop *models.Coop, t time.Time) string { return inLoc(coop, t).Format("15:04") }
 
 // agree accorde un adjectif : « la porte » (féminin) ou « le pondoir » (masculin).
+// partName : « porte » ou « mangeoire » (« door » / « feeder »).
+func partName(coop *models.Coop, dev *models.Device) string {
+	if dev.IsFeeder() {
+		return t(coop, "mangeoire", "feeder")
+	}
+	return t(coop, "porte", "door")
+}
+
+// partArticle : « la porte » ou « la mangeoire ».
+func partArticle(coop *models.Coop, dev *models.Device) string {
+	return t(coop, "la ", "the ") + partName(coop, dev)
+}
+
 func agree(dev *models.Device, fem, masc string) string {
 	if dev.Role == models.RoleNestBox {
 		return masc

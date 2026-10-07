@@ -89,7 +89,7 @@ func PlanDay(coop *models.Coop, devices []models.Device, day time.Time) (*DayPla
 	}
 	for i := range devices {
 		dev := &devices[i]
-		if !dev.IsDoor() || dev.Rule == nil {
+		if !dev.Opens() || dev.Rule == nil {
 			continue
 		}
 		if _, err := r.door(dev.ID); err != nil {
@@ -158,7 +158,7 @@ func (r *resolver) door(id uuid.UUID) (DoorTimes, error) {
 		return t, nil
 	}
 	dev, ok := r.byID[id]
-	if !ok || !dev.IsDoor() || dev.Rule == nil {
+	if !ok || !dev.Opens() || dev.Rule == nil {
 		return DoorTimes{}, &planError{CodeMissingRef, tr(r.lang, "appareil de référence introuvable ou sans règle", "reference device not found or without a rule")}
 	}
 	if r.visiting[id] {

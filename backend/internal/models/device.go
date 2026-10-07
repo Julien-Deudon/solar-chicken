@@ -14,7 +14,7 @@ const (
 	RoleMainDoor DeviceRole = "main_door" // porte principale
 	RoleNestBox  DeviceRole = "nest_box"  // pondoir
 	RoleDoor     DeviceRole = "door"      // autre porte
-	RoleFeeder   DeviceRole = "feeder"    // mangeoire (surveillance seulement)
+	RoleFeeder   DeviceRole = "feeder"    // mangeoire (couvercle programmé comme une porte, ou surveillé)
 )
 
 func (r DeviceRole) Valid() bool {
@@ -82,7 +82,22 @@ func (d *Device) BeforeCreate(tx *gorm.DB) error {
 // IsDoor indique si l'appareil est une porte motorisée.
 func (d *Device) IsDoor() bool { return d.DeviceType == "Autodoor" }
 
+// IsFeeder indique si l'appareil est une mangeoire (couvercle motorisé).
+func (d *Device) IsFeeder() bool { return d.DeviceType == "Feeder" }
+
+// Opens indique si l'appareil s'ouvre et se ferme (porte ou mangeoire) : il peut avoir une règle.
+func (d *Device) Opens() bool { return d.IsDoor() || d.IsFeeder() }
+
 // Automated indique si le serveur planifie des actions pour cet appareil.
 func (d *Device) Automated() bool {
-	return d.Enabled && d.IsDoor() && d.Strategy != StrategyMonitor && d.Rule != nil
+	return d.Enabled && d.Opens() && d.Strategy != StrategyMonitor && d.Rule != nil
+}
+
+// StrategyFits indique si la stratégie convient au type d'appareil : une mangeoire se met en veille
+// (commandes reçues avec retard), elle garde donc ses horaires dans son boîtier ou reste surveillée.
+func StrategyFits(deviceType string, s Strategy) bool {
+	if !s.Valid() {
+		return false
+	}
+	return deviceType != "Feeder" || s != StrategyCommand
 }

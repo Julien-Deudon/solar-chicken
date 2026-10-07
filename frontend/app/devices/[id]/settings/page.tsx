@@ -19,7 +19,7 @@ import { useDeviceContext } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
 import { deviceTypeLabel, roleLabel, strategyHint, strategyLabel } from '@/lib/labels';
 import { ofDevice } from '@/lib/coop';
-import { DEFAULT_RULE, getMoment, isDoor, rulesEqual, toRulePayload, withMoment } from '@/lib/rule';
+import { defaultRuleFor, getMoment, isDoor, rulesEqual, toRulePayload, withMoment } from '@/lib/rule';
 import type { Device, DeviceRole, PreviewDay, Rule, Strategy, UpdateDeviceRequest } from '@/types';
 
 interface DeviceForm {
@@ -45,8 +45,13 @@ function deviceChanges(form: DeviceForm, device: Device): UpdateDeviceRequest {
   return body;
 }
 
-const ruleChanged = (rule: Rule | null, device: Device) =>
-  !!rule && (!device.rule || !rulesEqual(rule, device.rule));
+/** Règle affichée dans l'éditeur : celle de l'appareil, sinon la règle proposée pour son rôle. */
+const draftRule = (device: Device, devices: Device[]): Rule =>
+  device.rule ?? defaultRuleFor(device, devices.find((d) => d.role === 'main_door' && d.id !== device.id)?.id ?? null);
+
+/** La règle a changé par rapport à celle enregistrée (ou, sans règle, à la règle proposée). */
+const ruleChanged = (rule: Rule | null, device: Device, devices: Device[]) =>
+  !!rule && !rulesEqual(rule, draftRule(device, devices));
 
 function DeviceSettings() {
   const { t } = useI18n();
@@ -65,11 +70,11 @@ function DeviceSettings() {
 
   // Brouillons initialisés au premier chargement (puis après chaque enregistrement).
   useEffect(() => {
-    if (device && !form) {
+    if (device && coop && !form) {
       setForm(toForm(device));
-      setRule(isDoor(device) ? device.rule ?? DEFAULT_RULE : null);
+      setRule(draftRule(device, coop.devices));
     }
-  }, [device, form]);
+  }, [device, coop, form]);
 
   // Aperçu en direct (POST /devices/:id/rule/preview), 500 ms après la dernière modification.
   useEffect(() => {
@@ -95,7 +100,7 @@ function DeviceSettings() {
   }, [deviceId, rule]);
 
   const dirty =
-    !!device && !!form && (Object.keys(deviceChanges(form, device)).length > 0 || ruleChanged(rule, device));
+    !!device && !!coop && !!form && (Object.keys(deviceChanges(form, device)).length > 0 || ruleChanged(rule, device, coop.devices));
 
   // Avertit avant de quitter / recharger la page avec des modifications non enregistrées.
   useEffect(() => {
@@ -116,7 +121,8 @@ function DeviceSettings() {
   const otherDoors = coop.devices.filter((d) => d.id !== device.id && isDoor(d));
   const otherMainDoor = coop.devices.find((d) => d.id !== device.id && d.role === 'main_door');
   const roleOptions: DeviceRole[] = door ? ['main_door', 'nest_box', 'door'] : ['feeder'];
-  const strategyOptions: Strategy[] = door ? ['command', 'onboard', 'monitor'] : ['monitor'];
+  // Une mangeoire se met en veille entre deux connexions : pas de commande à l'heure exacte.
+  const strategyOptions: Strategy[] = door ? ['command', 'onboard', 'monitor'] : ['onboard', 'monitor'];
   const showLight = device.hasLight && form.strategy === 'command';
 
   const previewNote = !device.enabled
@@ -133,7 +139,7 @@ function DeviceSettings() {
       return;
     }
     const body = deviceChanges(form, device);
-    const saveRule = ruleChanged(rule, device);
+    const saveRule = ruleChanged(rule, device, coop.devices);
     if (Object.keys(body).length === 0 && !saveRule) {
       toast(t('common.noChanges'));
       return;
@@ -169,14 +175,14 @@ function DeviceSettings() {
     const fresh = await reload();
     if (fresh) {
       setForm(toForm(fresh.device));
-      setRule(isDoor(fresh.device) ? fresh.device.rule ?? DEFAULT_RULE : null);
+      setRule(draftRule(fresh.device, fresh.coop.devices));
     }
     setSaving(false);
   };
 
   const cancel = () => {
     setForm(toForm(device));
-    setRule(door ? device.rule ?? DEFAULT_RULE : null);
+    setRule(draftRule(device, coop.devices));
   };
 
   const remove = async () => {
@@ -204,7 +210,7 @@ function DeviceSettings() {
         </p>
       </div>
 
-      {door && rule ? (
+      {rule && (
         <>
           <Card as="section" className="space-y-7">
             <RuleMomentEditor
@@ -232,8 +238,6 @@ function DeviceSettings() {
             <RulePreview days={preview} error={previewError} loading={previewLoading} timeZone={tz} note={previewNote} />
           </Card>
         </>
-      ) : (
-        <Notice tone="info">{t('deviceSettings.feederNotice')}</Notice>
       )}
 
       <section aria-labelledby="device-title">
@@ -284,13 +288,7 @@ function DeviceSettings() {
             <Switch
               id="device-enabled"
               label={t('deviceSettings.automation')}
-              description={
-                !door
-                  ? t('deviceSettings.automationFeeder')
-                  : form.enabled
-                    ? t('deviceSettings.automationOn')
-                    : t('deviceSettings.automationOff')
-              }
+              description={form.enabled ? t('deviceSettings.automationOn') : t('deviceSettings.automationOff')}
               checked={form.enabled}
               onChange={(enabled) => setForm({ ...form, enabled })}
             />

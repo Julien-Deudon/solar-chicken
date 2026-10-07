@@ -144,7 +144,7 @@ function AddDevice() {
   }
 
   const roleOptions: DeviceRole[] = selected && isFeederType(selected) ? ['feeder'] : DOOR_ROLES;
-  const strategyOptions: Strategy[] = selected && isFeederType(selected) ? ['monitor'] : DOOR_STRATEGIES;
+  const strategyOptions: Strategy[] = selected && isFeederType(selected) ? ['onboard', 'monitor'] : DOOR_STRATEGIES;
 
   return (
     <div className="space-y-4">

@@ -57,7 +57,7 @@ func (a *API) AddDevice(c *gin.Context) {
 	if strategy == "" {
 		strategy = models.DefaultStrategy(req.Role)
 	}
-	if !strategy.Valid() || (!isDoor && strategy != models.StrategyMonitor) {
+	if !models.StrategyFits(od.DeviceType, strategy) {
 		fail(c, http.StatusBadRequest, tr(c, "Stratégie invalide pour cet appareil", "Invalid mode for this device"))
 		return
 	}
@@ -139,7 +139,7 @@ func (a *API) UpdateDevice(c *gin.Context) {
 		updates["role"] = *req.Role
 	}
 	if req.Strategy != nil {
-		if !req.Strategy.Valid() || (!dev.IsDoor() && *req.Strategy != models.StrategyMonitor) {
+		if !models.StrategyFits(dev.DeviceType, *req.Strategy) {
 			fail(c, http.StatusBadRequest, tr(c, "Stratégie invalide pour cet appareil", "Invalid mode for this device"))
 			return
 		}
@@ -154,8 +154,36 @@ func (a *API) UpdateDevice(c *gin.Context) {
 	if req.Position != nil {
 		updates["position"] = *req.Position
 	}
-	if len(updates) > 0 {
-		if err := a.DB.Model(&models.Device{}).Where("id = ?", dev.ID).Updates(updates).Error; err != nil {
+	// Un appareil qui passe d'une simple surveillance à des horaires reçoit la règle proposée par défaut.
+	var newRule *models.Rule
+	if req.Strategy != nil && *req.Strategy != models.StrategyMonitor && dev.Rule == nil && dev.Opens() {
+		var mainDoorID *uuid.UUID
+		for i := range coop.Devices {
+			if coop.Devices[i].Role == models.RoleMainDoor && coop.Devices[i].ID != dev.ID {
+				mainDoorID = &coop.Devices[i].ID
+			}
+		}
+		role := dev.Role
+		if req.Role != nil {
+			role = *req.Role
+		}
+		if newRule = models.DefaultRule(role, dev.HasLight, mainDoorID); newRule != nil {
+			newRule.DeviceID = dev.ID
+		}
+	}
+	if len(updates) > 0 || newRule != nil {
+		err := a.DB.Transaction(func(tx *gorm.DB) error {
+			if len(updates) > 0 {
+				if err := tx.Model(&models.Device{}).Where("id = ?", dev.ID).Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+			if newRule != nil {
+				return tx.Create(newRule).Error
+			}
+			return nil
+		})
+		if err != nil {
 			fail(c, http.StatusInternalServerError, tr(c, "Enregistrement impossible", "Could not save"))
 			return
 		}

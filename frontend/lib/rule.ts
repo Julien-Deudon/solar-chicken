@@ -41,7 +41,26 @@ export const DEFAULT_RULE: Rule = {
 
 export const isDeviceAnchor = (anchor: Anchor) => anchor === 'device_open' || anchor === 'device_close';
 
+/** Porte : seule une porte sert de repère à la règle d'un autre appareil. */
 export const isDoor = (device: Pick<Device, 'role'>) => device.role !== 'feeder';
+
+/**
+ * Règle proposée à un appareil qui n'en a pas encore, comme le serveur : le pondoir s'ouvre avec la porte
+ * principale et se ferme 2 h avant elle, la mangeoire s'ouvre avec elle et se ferme au coucher du soleil.
+ */
+export function defaultRuleFor(device: Pick<Device, 'role'>, mainDoorId: string | null): Rule {
+  const withMain = (patch: Partial<Rule>): Rule =>
+    mainDoorId ? { ...DEFAULT_RULE, openAnchor: 'device_open', openOffsetMinutes: 0, openRefDeviceId: mainDoorId, ...patch } : DEFAULT_RULE;
+  if (device.role === 'nest_box') {
+    return mainDoorId
+      ? withMain({ closeAnchor: 'device_close', closeOffsetMinutes: -120, closeRefDeviceId: mainDoorId })
+      : { ...DEFAULT_RULE, closeOffsetMinutes: -100 };
+  }
+  if (device.role === 'feeder') {
+    return mainDoorId ? withMain({ closeOffsetMinutes: 0 }) : { ...DEFAULT_RULE, closeOffsetMinutes: 0 };
+  }
+  return DEFAULT_RULE;
+}
 
 export function getMoment(rule: Rule, kind: MomentKind): Moment {
   return kind === 'open'

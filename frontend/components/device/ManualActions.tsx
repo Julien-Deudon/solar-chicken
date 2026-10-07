@@ -74,10 +74,15 @@ export const ManualActions: React.FC<ManualActionsProps> = ({ device, mode, onDo
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-3 gap-2.5" role="group" aria-label={t('actions.group', { name: device.name, gender: genderOf(device) })}>
+      {/* Une mangeoire ne connaît qu'ouvrir et fermer. */}
+      <div
+        className={`grid gap-2.5 ${device.role === 'feeder' ? 'grid-cols-2' : 'grid-cols-3'}`}
+        role="group"
+        aria-label={t('actions.group', { name: device.name, gender: genderOf(device) })}
+      >
         {tile('open')}
         {tile('close')}
-        {tile('stop')}
+        {device.role !== 'feeder' && tile('stop')}
       </div>
       {device.hasLight && (
         <div className="grid grid-cols-2 gap-2.5" role="group" aria-label={t('actions.lightGroup')}>

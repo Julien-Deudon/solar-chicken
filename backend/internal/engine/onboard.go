@@ -27,7 +27,7 @@ func (e *Engine) syncOnboard(ctx context.Context) {
 		today := planner.DayKey(e.now(), loc)
 		for j := range coop.Devices {
 			dev := &coop.Devices[j]
-			if dev.Strategy != models.StrategyOnboard || !dev.Enabled || !dev.IsDoor() {
+			if dev.Strategy != models.StrategyOnboard || !dev.Enabled || !dev.Opens() {
 				continue
 			}
 			var evs []models.PlannedEvent
@@ -57,7 +57,7 @@ func (e *Engine) syncOnboard(ctx context.Context) {
 				}
 				continue
 			}
-			err := e.Clients(coop.OmletAPIKey).SetDoorTimes(ctx, dev.OmletDeviceID, openHM, closeHM)
+			err := e.Clients(coop.OmletAPIKey).SetTimes(ctx, dev.OmletDeviceID, openHM, closeHM)
 			e.logAction(dev, "configuration", models.ActionTriggerSync, err, fmt.Sprintf(t(coop, "horaires %s / %s", "times %s / %s"), openHM, closeHM))
 			if err != nil {
 				e.syncFails[dev.ID]++

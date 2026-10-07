@@ -54,6 +54,12 @@ function at(day, hhmm, offsetHours = 2) {
 const nestDefaultRule = (id, mainId) => mainId
   ? { ...defaultRule(id), openAnchor: 'device_open', openRefDeviceId: mainId, openOffsetMinutes: 0, closeAnchor: 'device_close', closeRefDeviceId: mainId, closeOffsetMinutes: -120 }
   : { ...defaultRule(id), closeOffsetMinutes: -100 };
+/** Règle proposée pour une mangeoire, comme le serveur : avec la porte principale, fermeture au coucher du soleil. */
+const feederDefaultRule = (id, mainId) => mainId
+  ? { ...defaultRule(id), openAnchor: 'device_open', openRefDeviceId: mainId, openOffsetMinutes: 0, closeOffsetMinutes: 0 }
+  : { ...defaultRule(id), closeOffsetMinutes: 0 };
+/** Règle proposée selon le rôle (null pour un rôle sans horaires). */
+const ruleFor = (id, role, mainId) => role === 'nest_box' ? nestDefaultRule(id, mainId) : role === 'feeder' ? feederDefaultRule(id, mainId) : defaultRule(id);
 const defaultRule = (id) => ({ id: 'r-' + id, deviceId: id, openAnchor: 'sunrise', openOffsetMinutes: -10, openFixedTime: null, openRefDeviceId: null, openNotBefore: null, openNotAfter: null, closeAnchor: 'sunset', closeOffsetMinutes: 20, closeFixedTime: null, closeRefDeviceId: null, closeNotBefore: null, closeNotAfter: null, lightBeforeOpenMinutes: 0, lightBeforeCloseMinutes: 0, enableLightMorning: false, enableLightEvening: false, lightOffDelayMinutes: 0 });
 
 let devices = FRESH ? [] : [
@@ -125,6 +131,11 @@ function dayView(offsetDays) {
   const errors = !DEMO && offsetDays === 1 && devices.some((d) => d.id === NEST)
     ? { [NEST]: tc("fermeture (07:00) avant l'ouverture (08:30) : aucune action prévue ce jour", 'closing (07:00) before opening (08:30): nothing scheduled that day') }
     : {};
+  const feeder = devices.find((d) => d.role === 'feeder' && d.strategy !== 'monitor' && d.enabled);
+  if (feeder) {
+    events.push(ev(offsetDays ? 'x' : 'f1', feeder.id, 'open', offsetDays ? '07:45' : '07:43', offsetDays ? 'pending' : 'confirmed', { strategy: 'onboard' }));
+    events.push(ev(offsetDays ? 'x' : 'f2', feeder.id, 'close', offsetDays ? '19:10' : '19:12', offsetDays || nowHM < '19:12' ? 'pending' : 'confirmed', { strategy: 'onboard' }));
+  }
   return { day, sunrise: at(day, '07:53'), sunset: at(day, '19:12'), events: events.filter((e) => devices.some((d) => d.id === e.deviceId)), errors };
 }
 
@@ -305,8 +316,8 @@ http.createServer((req, res) => {
       if (body.role === 'main_door' && main) return send(res, 409, { error: tr(req, `Ce poulailler a déjà une porte principale (${main.name})`, `This coop already has a main door (${main.name})`) });
       const id = `55555555-5555-4555-8555-${String(now()).slice(-12)}`;
       const isFeeder = body.role === 'feeder';
-      const dev = { id, coopId: COOP_ID, omletDeviceId: body.omletDeviceId, deviceType: isFeeder ? 'Feeder' : 'Autodoor', role: body.role, name: body.name || 'Nouveau', strategy: body.strategy || 'command', hasLight: body.omletDeviceId === 'omlet-main', enabled: true, position: devices.length, createdAt: new Date(now()).toISOString(), updatedAt: new Date(now()).toISOString(),
-        rule: isFeeder ? null : body.role === 'nest_box' ? nestDefaultRule(id, main && main.id) : defaultRule(id) };
+      const dev = { id, coopId: COOP_ID, omletDeviceId: body.omletDeviceId, deviceType: isFeeder ? 'Feeder' : 'Autodoor', role: body.role, name: body.name || 'Nouveau', strategy: body.strategy || (body.role === 'main_door' ? 'command' : 'onboard'), hasLight: body.omletDeviceId === 'omlet-main', enabled: true, position: devices.length, createdAt: new Date(now()).toISOString(), updatedAt: new Date(now()).toISOString(),
+        rule: ruleFor(id, body.role, main && main.id) };
       devices.push(dev);
       return send(res, 201, dev);
     }
@@ -317,7 +328,10 @@ http.createServer((req, res) => {
       if (sub === '' && req.method === 'PUT') {
         const main = devices.find((d) => d.role === 'main_door' && d.id !== dev.id);
         if (body.role === 'main_door' && main) return send(res, 409, { error: tr(req, `Ce poulailler a déjà une porte principale (${main.name})`, `This coop already has a main door (${main.name})`) });
+        if (dev.role === 'feeder' && body.strategy === 'command') return send(res, 400, { error: tr(req, 'Stratégie invalide pour cet appareil', 'Invalid mode for this device') });
         Object.assign(dev, Object.fromEntries(Object.entries(body).filter(([k]) => ['name', 'role', 'strategy', 'enabled', 'position'].includes(k))));
+        // Passage d'une simple surveillance à des horaires : règle proposée par défaut, comme le serveur.
+        if (!dev.rule && dev.strategy !== 'monitor') dev.rule = ruleFor(dev.id, dev.role, main && main.id);
         return send(res, 200, dev);
       }
       if (sub === '' && req.method === 'DELETE') {

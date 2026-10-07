@@ -594,10 +594,8 @@ export const fr = {
     /** {of} : complément de l'appareil (device.of). */
     title: 'Réglages {of}',
     withLight: ', avec lumière',
-    feederNotice: "Une mangeoire n'a pas d'horaires : son état est seulement surveillé.",
     device: 'Appareil',
     automation: 'Automatismes actifs',
-    automationFeeder: "Une mangeoire n'a jamais d'action automatique.",
     automationOn: 'Les horaires sont appliqués.',
     automationOff: 'En pause : seuls les boutons la font bouger.',
     remove: "Supprimer l'appareil",

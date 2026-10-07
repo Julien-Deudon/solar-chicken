@@ -2,12 +2,9 @@ package models
 
 import "github.com/google/uuid"
 
-// DefaultStrategy retourne la stratégie conseillée pour un rôle : les portes gardent leurs horaires
-// dans leur boîtier (elles fonctionnent même si le serveur ou internet tombe), la mangeoire est surveillée.
+// DefaultStrategy retourne la stratégie conseillée : portes et mangeoires gardent leurs horaires dans leur
+// boîtier (elles fonctionnent même si le serveur ou internet tombe) ; le serveur vérifie et commande en secours.
 func DefaultStrategy(role DeviceRole) Strategy {
-	if role == RoleFeeder {
-		return StrategyMonitor
-	}
 	return StrategyOnboard
 }
 
@@ -20,12 +17,18 @@ const (
 )
 
 // DefaultRule retourne la règle proposée à l'ajout d'un appareil ; elle se modifie ensuite dans ses réglages.
-// Pondoir : s'ouvre avec la porte principale et se ferme 2 h avant elle ; sans porte principale,
-// les mêmes horaires calculés directement sur le soleil.
+// Pondoir : s'ouvre avec la porte principale et se ferme 2 h avant elle ; mangeoire : s'ouvre avec la porte
+// principale, se ferme au coucher du soleil. Sans porte principale, les mêmes horaires calculés sur le soleil.
 func DefaultRule(role DeviceRole, hasLight bool, mainDoor *uuid.UUID) *Rule {
 	switch role {
 	case RoleFeeder:
-		return nil
+		// S'ouvre avec la porte principale (ou 10 min avant le lever), se ferme au coucher du soleil.
+		r := &Rule{OpenAnchor: AnchorSunrise, OpenOffsetMinutes: defaultOpenOffset, CloseAnchor: AnchorSunset}
+		if mainDoor != nil {
+			ref := *mainDoor
+			r.OpenAnchor, r.OpenOffsetMinutes, r.OpenRefDeviceID = AnchorDeviceOpen, 0, &ref
+		}
+		return r
 	case RoleNestBox:
 		r := &Rule{
 			OpenAnchor: AnchorSunrise, OpenOffsetMinutes: defaultOpenOffset,

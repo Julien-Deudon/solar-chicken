@@ -24,9 +24,10 @@ function detailFor(device: Device, state: DeviceStateView | undefined, days: Day
   if (state?.power === 'battery' && state.battery > 0 && state.battery < 20) problems.push(t('deviceList.lowBattery', { level: state.battery }));
   if (state?.error) problems.push(t('deviceList.omletDown'));
 
+  const feed = device.role === 'feeder' && state?.feedLevel !== undefined ? t('deviceList.feed', { level: state.feedLevel }) : null;
   let line: string;
-  if (device.role === 'feeder') {
-    line = state?.feedLevel !== undefined ? t('deviceList.feed', { level: state.feedLevel }) : t('deviceList.monitorOnly');
+  if (device.role === 'feeder' && device.strategy === 'monitor') {
+    line = feed ?? t('deviceList.monitorOnly');
   } else if (!device.enabled) {
     line = t('deviceList.paused');
   } else {
@@ -36,6 +37,7 @@ function detailFor(device: Device, state: DeviceStateView | undefined, days: Day
     line = next.length
       ? capitalize(next.map((e) => t(e.action === 'open' ? 'deviceList.opens' : 'deviceList.closes', { when: whenText(e, tz, now) })).join(', '))
       : t('deviceList.nothingPlanned');
+    if (feed) line += ` · ${feed}`;
   }
   return { line, problems };
 }

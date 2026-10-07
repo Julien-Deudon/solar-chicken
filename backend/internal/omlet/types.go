@@ -64,38 +64,59 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// DoorIs indique si la porte est dans l'état voulu ("open" ou "closed").
-func (d *Device) DoorIs(want string) bool {
-	return d.State.Door != nil && d.State.Door.State == want
+// mechanism retourne l'état et le défaut de la partie mobile : la porte, ou le couvercle d'une mangeoire.
+func (d *Device) mechanism() (state, fault string, ok bool) {
+	switch {
+	case d.State.Door != nil:
+		return d.State.Door.State, d.State.Door.Fault, true
+	case d.State.Feeder != nil:
+		return d.State.Feeder.State, d.State.Feeder.Fault, true
+	}
+	return "", "", false
 }
 
-// DoorMovingTo indique si la porte est en train d'aller vers l'état voulu.
+// OpenState retourne l'état de la porte ou du couvercle de la mangeoire ("open", "closed", "opening"…).
+func (d *Device) OpenState() string {
+	state, _, _ := d.mechanism()
+	return state
+}
+
+// DoorIs indique si la porte (ou le couvercle de la mangeoire) est dans l'état voulu ("open" ou "closed").
+func (d *Device) DoorIs(want string) bool {
+	state, _, ok := d.mechanism()
+	return ok && state == want
+}
+
+// DoorMovingTo indique si la porte (ou le couvercle) est en train d'aller vers l'état voulu.
 func (d *Device) DoorMovingTo(want string) bool {
-	if d.State.Door == nil {
+	state, _, ok := d.mechanism()
+	if !ok {
 		return false
 	}
 	switch want {
 	case "open":
-		return d.State.Door.State == "opening" || d.State.Door.State == "openpending"
+		return state == "opening" || state == "openpending"
 	case "closed":
-		return d.State.Door.State == "closing" || d.State.Door.State == "closepending"
+		return state == "closing" || state == "closepending"
 	}
 	return false
 }
 
-// DoorFault retourne le défaut de la porte ("" si aucun).
+// DoorFault retourne le défaut de la porte ou du couvercle ("" si aucun).
 func (d *Device) DoorFault() string {
-	if d.State.Door == nil {
+	state, fault, ok := d.mechanism()
+	if !ok {
 		return ""
 	}
-	if f := d.State.Door.Fault; f != "" && f != "none" {
-		return f
+	if fault != "" && fault != "none" {
+		return fault
 	}
-	if d.State.Door.State == "faulted" {
+	if state == "faulted" {
 		return "faulted"
 	}
 	return ""
 }
 
-// OnBattery indique un appareil sur piles (les commandes peuvent arriver avec retard).
-func (d *Device) OnBattery() bool { return d.State.General.PowerSource == "battery" }
+// OnBattery indique un appareil qui n'est pas sur secteur (piles, ou batterie « internal » des portes) :
+// il se met en veille entre deux connexions et reçoit les commandes avec retard.
+func (d *Device) OnBattery() bool { return d.State.General.PowerSource != "external" }

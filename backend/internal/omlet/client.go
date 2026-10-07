@@ -137,23 +137,37 @@ func (c *Client) Action(ctx context.Context, deviceID, action string) error {
 	return c.do(ctx, http.MethodPost, fmt.Sprintf("/device/%s/action/%s", deviceID, action), nil, nil, false)
 }
 
-// SetDoorTimes passe la porte en mode horaire avec les heures données (HH:MM).
-// La section "door" est relue puis renvoyée en entier pour ne perdre aucun autre réglage.
-func (c *Client) SetDoorTimes(ctx context.Context, deviceID, openTime, closeTime string) error {
+// SetTimes passe l'appareil en mode horaire avec les heures données (HH:MM) : une porte (openTime/closeTime)
+// ou une mangeoire (plage 1, les plages 2 à 4 sont vidées : l'appli décide seule des horaires).
+// La section est relue puis renvoyée en entier pour ne perdre aucun autre réglage.
+func (c *Client) SetTimes(ctx context.Context, deviceID, openTime, closeTime string) error {
 	var cfg map[string]json.RawMessage
 	if err := c.do(ctx, http.MethodGet, "/device/"+deviceID+"/configuration", nil, &cfg, true); err != nil {
 		return err
 	}
-	door := map[string]interface{}{}
-	if raw, ok := cfg["door"]; ok {
-		if err := json.Unmarshal(raw, &door); err != nil {
-			return fmt.Errorf("configuration porte illisible : %w", err)
+	for _, name := range []string{"door", "feeder"} {
+		raw, ok := cfg[name]
+		if !ok {
+			continue
 		}
+		section := map[string]interface{}{}
+		if err := json.Unmarshal(raw, &section); err != nil {
+			return fmt.Errorf("configuration %s illisible : %w", name, err)
+		}
+		if len(section) == 0 {
+			break
+		}
+		if name == "door" {
+			section["openMode"], section["closeMode"] = "time", "time"
+			section["openTime"], section["closeTime"] = openTime, closeTime
+		} else {
+			section["mode"] = "time"
+			section["openTime1"], section["closeTime1"] = openTime, closeTime
+			for slot := 2; slot <= 4; slot++ {
+				section[fmt.Sprintf("openTime%d", slot)], section[fmt.Sprintf("closeTime%d", slot)] = "00:00", "00:00"
+			}
+		}
+		return c.do(ctx, http.MethodPatch, "/device/"+deviceID+"/configuration", map[string]interface{}{name: section}, nil, true)
 	}
-	if len(door) == 0 {
-		return errors.New("configuration porte absente : appareil non compatible")
-	}
-	door["openMode"], door["closeMode"] = "time", "time"
-	door["openTime"], door["closeTime"] = openTime, closeTime
-	return c.do(ctx, http.MethodPatch, "/device/"+deviceID+"/configuration", map[string]interface{}{"door": door}, nil, true)
+	return errors.New("configuration de porte ou de mangeoire absente : appareil non compatible")
 }
