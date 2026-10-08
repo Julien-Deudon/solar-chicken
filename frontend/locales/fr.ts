@@ -254,6 +254,7 @@ export const fr = {
 
   deviceList: {
     lowBattery: 'Piles faibles ({level} %)',
+    overdue: "Ne s'est pas reconnecté à l'heure prévue",
     omletDown: "Omlet ne répond pas pour l'instant",
     feed: 'Grain : {level} %',
     monitorOnly: 'Surveillance seulement',
@@ -468,6 +469,8 @@ export const fr = {
     mains: 'Secteur',
     online: 'En ligne',
     asleep: 'En veille, se reconnecte régulièrement',
+    asleepUntil: 'En veille, prochaine connexion {when}',
+    overdue: 'Connexion prévue manquée (dernière : {when})',
     offline: 'Hors ligne',
     succeeded: 'Réussi',
     failed: 'Échec',

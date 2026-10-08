@@ -67,6 +67,9 @@ type stateView struct {
 	LastOpen  string     `json:"lastOpen,omitempty"`
 	LastClose string     `json:"lastClose,omitempty"`
 	FeedLevel *int       `json:"feedLevel,omitempty"`
+	Asleep    bool       `json:"asleep,omitempty"`   // sur piles, entre deux connexions (état de la dernière)
+	NextWake  *time.Time `json:"nextWake,omitempty"` // prochaine connexion prévue
+	Overdue   bool       `json:"overdue,omitempty"`  // connexion prévue manquée
 	FetchedAt *time.Time `json:"fetchedAt,omitempty"`
 	Error     string     `json:"error,omitempty"`
 }
@@ -84,15 +87,19 @@ func (a *API) states(coop *models.Coop) map[string]stateView {
 			v.FetchedAt = &t
 		}
 		if od := snap.Device; od != nil {
-			v.Battery, v.Power, v.Connected = od.State.General.BatteryLevel, od.State.General.PowerSource, od.State.Connectivity.Connected
+			v.Battery, v.Power, v.Connected = int(od.State.General.BatteryLevel), od.State.General.PowerSource, od.State.Connectivity.Connected
+			v.Asleep, v.Overdue = od.Asleep(), od.OverdueConnection > 0
+			if wake := od.WakesAt(); !wake.IsZero() {
+				v.NextWake = &wake
+			}
 			if od.State.Door != nil {
 				v.Door, v.Fault, v.LastOpen, v.LastClose = od.State.Door.State, od.State.Door.Fault, od.State.Door.LastOpenTime, od.State.Door.LastCloseTime
 			}
 			if od.State.Feeder != nil {
-				lvl := od.State.Feeder.FeedLevel
+				lvl := int(od.State.Feeder.FeedLevel)
 				v.Door, v.Fault, v.LastOpen, v.LastClose, v.FeedLevel = od.State.Feeder.State, od.State.Feeder.Fault, od.State.Feeder.LastOpenTime, od.State.Feeder.LastCloseTime, &lvl
 			}
-			if od.State.Light != nil {
+			if od.HasLight() {
 				v.Light = od.State.Light.State
 			}
 		}
@@ -308,7 +315,7 @@ func (a *API) DiscoverDevices(c *gin.Context) {
 		v := omletDeviceView{
 			DeviceID: d.DeviceID, Name: d.Name, DeviceType: d.DeviceType, GroupID: d.GroupID,
 			SameGroup: coop.OmletGroupID == "" || d.GroupID == coop.OmletGroupID, AlreadyAdded: known[d.DeviceID],
-			PowerSource: d.State.General.PowerSource, HasLight: d.State.Light != nil,
+			PowerSource: d.State.General.PowerSource, HasLight: d.HasLight(),
 		}
 		if d.State.Door != nil {
 			v.DoorState = d.State.Door.State

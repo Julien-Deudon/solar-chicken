@@ -179,7 +179,7 @@ func main() {
 			}
 			s, hasSchedule := schedules[d.ID]
 			dev := models.Device{ID: d.ID, CoopID: coop.ID, OmletDeviceID: d.OmletDeviceID, DeviceType: "Autodoor", Role: role,
-				Name: "Porte principale", Strategy: models.StrategyCommand, HasLight: od == nil || od.State.Light != nil,
+				Name: "Porte principale", Strategy: models.StrategyCommand, HasLight: od == nil || od.HasLight(),
 				Enabled: hasSchedule && s.Enabled, Position: i, CreatedAt: d.CreatedAt}
 			if role != models.RoleMainDoor {
 				dev.Name = d.Name

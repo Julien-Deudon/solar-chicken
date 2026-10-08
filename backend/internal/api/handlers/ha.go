@@ -59,14 +59,14 @@ func (a *API) HAState(token string) gin.HandlerFunc {
 			if snap, ok := a.Engine.Snapshot(d.ID); ok {
 				hd.StatusAge = int(now.Sub(snap.FetchedAt).Seconds())
 				if od := snap.Device; od != nil {
-					hd.Battery, hd.Power, hd.Connected = od.State.General.BatteryLevel, od.State.General.PowerSource, od.State.Connectivity.Connected
+					hd.Battery, hd.Power, hd.Connected = int(od.State.General.BatteryLevel), od.State.General.PowerSource, od.State.Connectivity.Connected
 					if od.State.Door != nil {
 						hd.Door, hd.Fault, hd.LastOpen, hd.LastClose = od.State.Door.State, od.State.Door.Fault, od.State.Door.LastOpenTime, od.State.Door.LastCloseTime
 					}
 					if od.State.Feeder != nil {
 						hd.Door, hd.Fault, hd.LastOpen, hd.LastClose = od.State.Feeder.State, od.State.Feeder.Fault, od.State.Feeder.LastOpenTime, od.State.Feeder.LastCloseTime
 					}
-					if od.State.Light != nil {
+					if od.HasLight() {
 						hd.Light = od.State.Light.State
 					}
 				}

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/julien-deudon/solar-chicken/backend/internal/models"
+	"github.com/julien-deudon/solar-chicken/backend/internal/omlet"
 	"gorm.io/gorm"
 )
 
@@ -67,7 +68,7 @@ func (a *API) AddDevice(c *gin.Context) {
 	}
 	dev := models.Device{
 		CoopID: coop.ID, OmletDeviceID: od.DeviceID, DeviceType: od.DeviceType, Role: req.Role, Name: name,
-		Strategy: strategy, HasLight: od.State.Light != nil, Enabled: true, Position: len(coop.Devices),
+		Strategy: strategy, HasLight: od.HasLight(), Enabled: true, Position: len(coop.Devices),
 	}
 	var mainDoorID *uuid.UUID
 	for i := range coop.Devices {
@@ -238,13 +239,25 @@ func (a *API) DeviceStatus(c *gin.Context) {
 		fail(c, http.StatusBadGateway, tr(c, "API Omlet : ", "Omlet API: ")+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	var light *omlet.StateLight
+	if od.HasLight() {
+		light = od.State.Light
+	}
+	status := gin.H{
 		"name": od.Name, "deviceType": od.DeviceType, "groupId": od.GroupID,
-		"door": od.State.Door, "light": od.State.Light, "feeder": od.State.Feeder,
+		"door": od.State.Door, "light": light, "feeder": od.State.Feeder,
 		"batteryLevel": od.State.General.BatteryLevel, "powerSource": od.State.General.PowerSource,
 		"firmware":     od.State.General.FirmwareVersionCurrent,
 		"wifiStrength": od.State.Connectivity.WifiStrength, "connected": od.State.Connectivity.Connected,
-	})
+		"asleep": od.Asleep(), "overdue": od.OverdueConnection > 0,
+	}
+	if wake := od.WakesAt(); !wake.IsZero() {
+		status["nextWake"] = wake
+	}
+	if seen := od.LastSeen(); !seen.IsZero() && od.Asleep() {
+		status["lastSeen"] = seen
+	}
+	c.JSON(http.StatusOK, status)
 }
 
 // DeviceAction : POST /devices/:id/actions/:action (open, close, stop, light_on, light_off)

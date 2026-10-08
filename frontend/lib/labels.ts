@@ -68,8 +68,11 @@ export function deviceTypeLabel(deviceType: string): string {
   return deviceType || t('labels.deviceType.other');
 }
 
+/** Sur piles : Omlet dit « battery » (mangeoire) ou « internal » (piles logées dans une porte). */
+export const isOnBattery = (powerSource?: string | null): boolean => powerSource === 'battery' || powerSource === 'internal';
+
 export function powerSourceLabel(powerSource?: string | null): string {
   if (powerSource === 'external') return t('labels.power.external');
-  if (powerSource === 'battery') return t('labels.power.battery');
+  if (isOnBattery(powerSource)) return t('labels.power.battery');
   return powerSource || t('labels.power.unknown');
 }

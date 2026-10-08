@@ -17,6 +17,7 @@ import {
   defaultStrategy,
   deviceTypeLabel,
   doorStateLabel,
+  isOnBattery,
   roleLabel,
   strategyHint,
   strategyLabel,
@@ -163,7 +164,7 @@ function AddDevice() {
             const facts = [
               deviceTypeLabel(device.deviceType),
               device.doorState ? doorStateLabel(device.doorState).toLowerCase() : null,
-              device.powerSource === 'battery' ? t('addDevice.onBattery') : device.powerSource ? t('addDevice.onMains') : null,
+              isOnBattery(device.powerSource) ? t('addDevice.onBattery') : device.powerSource ? t('addDevice.onMains') : null,
               device.hasLight ? t('addDevice.withLight') : null,
             ].filter(Boolean);
             return (

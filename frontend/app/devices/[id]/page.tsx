@@ -15,7 +15,7 @@ import { devicesApi, getErrorMessage } from '@/lib/api';
 import { doorPhase, nextEvent, phaseSentence, stateFromStatus, whenText } from '@/lib/coop';
 import { useDeviceContext, useDeviceStatus, useNow, usePolling } from '@/lib/hooks';
 import { useI18n, type TFunction } from '@/lib/i18n';
-import { faultLabel, logActionLabel, roleLabel, triggerLabel } from '@/lib/labels';
+import { faultLabel, isOnBattery, logActionLabel, roleLabel, triggerLabel } from '@/lib/labels';
 import { capitalize, dayKey, formatDateShort, formatTime, formatWhen } from '@/lib/time';
 import type { ActionLog, DeviceStatus } from '@/types';
 
@@ -38,15 +38,24 @@ function stateRows(s: DeviceStatus, tz: string, now: number, t: TFunction): { la
   }
   if (s.light) rows.push({ label: t('devicePage.rowLight'), value: t(s.light.state === 'on' ? 'devicePage.lightOn' : 'devicePage.lightOff') });
   rows.push(
-    s.powerSource === 'battery'
+    isOnBattery(s.powerSource)
       ? { label: t('devicePage.rowPower'), value: t('devicePage.battery', { level: s.batteryLevel }), alert: s.batteryLevel < 20 }
       : { label: t('devicePage.rowPower'), value: t('devicePage.mains') }
   );
   rows.push({ label: t('devicePage.rowWifi'), value: wifiWord(s.wifiStrength, t) });
+  const asleep = !s.connected && (s.asleep ?? isOnBattery(s.powerSource));
   rows.push({
     label: t('devicePage.rowConnection'),
-    value: t(s.connected ? 'devicePage.online' : s.powerSource === 'battery' ? 'devicePage.asleep' : 'devicePage.offline'),
-    alert: !s.connected && s.powerSource !== 'battery',
+    value: s.overdue
+      ? t('devicePage.overdue', { when: formatWhen(s.lastSeen, tz, now) })
+      : s.connected
+        ? t('devicePage.online')
+        : asleep
+          ? s.nextWake
+            ? t('devicePage.asleepUntil', { when: formatWhen(s.nextWake, tz, now) })
+            : t('devicePage.asleep')
+          : t('devicePage.offline'),
+    alert: !!s.overdue || (!s.connected && !asleep),
   });
   if (part?.lastOpenTime) rows.push({ label: t('devicePage.rowLastOpen'), value: formatWhen(part.lastOpenTime, tz, now) });
   if (part?.lastCloseTime) rows.push({ label: t('devicePage.rowLastClose'), value: formatWhen(part.lastCloseTime, tz, now) });

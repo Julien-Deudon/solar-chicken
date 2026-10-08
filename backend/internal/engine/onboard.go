@@ -57,7 +57,7 @@ func (e *Engine) syncOnboard(ctx context.Context) {
 				}
 				continue
 			}
-			err := e.Clients(coop.OmletAPIKey).SetTimes(ctx, dev.OmletDeviceID, openHM, closeHM)
+			err := e.Clients(coop.OmletAPIKey).SetTimes(ctx, dev.OmletDeviceID, openHM, closeHM, coop.Timezone)
 			e.logAction(dev, "configuration", models.ActionTriggerSync, err, fmt.Sprintf(t(coop, "horaires %s / %s", "times %s / %s"), openHM, closeHM))
 			if err != nil {
 				e.syncFails[dev.ID]++

@@ -4,7 +4,7 @@ import { ChevronRight, DoorClosed, DoorOpen, Egg, Wheat, type LucideIcon } from 
 import { genderOf, nextEvent, phaseOfState, phaseShort, phaseTone, whenText } from '@/lib/coop';
 import { useI18n, type TFunction } from '@/lib/i18n';
 import { capitalize } from '@/lib/time';
-import { faultLabel } from '@/lib/labels';
+import { faultLabel, isOnBattery } from '@/lib/labels';
 import type { DayView, Device, DeviceStateView } from '@/types';
 
 const DOT = { sun: 'bg-sun', ink: 'bg-ink', alert: 'bg-alert', muted: 'bg-muted/60' } as const;
@@ -21,8 +21,9 @@ function detailFor(device: Device, state: DeviceStateView | undefined, days: Day
   const problems: string[] = [];
   const fault = faultLabel(state?.fault);
   if (fault) problems.push(fault);
-  if (state?.power === 'battery' && state.battery > 0 && state.battery < 20) problems.push(t('deviceList.lowBattery', { level: state.battery }));
+  if (isOnBattery(state?.power) && state && state.battery > 0 && state.battery < 20) problems.push(t('deviceList.lowBattery', { level: state.battery }));
   if (state?.error) problems.push(t('deviceList.omletDown'));
+  if (state?.overdue) problems.push(t('deviceList.overdue'));
 
   const feed = device.role === 'feeder' && state?.feedLevel !== undefined ? t('deviceList.feed', { level: state.feedLevel }) : null;
   let line: string;

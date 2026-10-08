@@ -51,7 +51,7 @@ func (f *fakeOmlet) Action(ctx context.Context, id, action string) error {
 	f.actions = append(f.actions, id+":"+action)
 	return nil
 }
-func (f *fakeOmlet) SetTimes(ctx context.Context, id, o, c string) error { return nil }
+func (f *fakeOmlet) SetTimes(ctx context.Context, id, o, c, tz string) error { return nil }
 
 type env struct {
 	t      *testing.T

@@ -241,6 +241,7 @@ export const en: Messages = {
 
   deviceList: {
     lowBattery: 'Low battery ({level}%)',
+    overdue: 'Missed its scheduled check-in',
     omletDown: "Omlet isn't responding right now",
     feed: 'Feed: {level}%',
     monitorOnly: 'Monitoring only',
@@ -453,6 +454,8 @@ export const en: Messages = {
     mains: 'Plugged in',
     online: 'Online',
     asleep: 'Asleep, reconnects regularly',
+    asleepUntil: 'Asleep, next check-in {when}',
+    overdue: 'Missed its check-in (last: {when})',
     offline: 'Offline',
     succeeded: 'Succeeded',
     failed: 'Failed',

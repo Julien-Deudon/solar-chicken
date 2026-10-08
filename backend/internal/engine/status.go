@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/julien-deudon/solar-chicken/backend/internal/models"
 	"github.com/julien-deudon/solar-chicken/backend/internal/omlet"
 )
 
@@ -68,6 +69,14 @@ func (e *Engine) pollStatuses(ctx context.Context) {
 		e.status.mu.Unlock()
 		if err != nil {
 			log.Printf("⚠️  État des appareils %s illisible : %v", coop.Name, err)
+			continue
+		}
+		// Lampe branchée ou retirée depuis l'ajout de l'appareil : on suit ce que dit Omlet.
+		for _, d := range coop.Devices {
+			if od := byOmlet[d.OmletDeviceID]; od != nil && od.HasLight() != d.HasLight {
+				e.DB.Model(&models.Device{}).Where("id = ?", d.ID).Update("has_light", od.HasLight())
+				log.Printf("💡 %s · %s : lampe %s", coop.Name, d.Name, map[bool]string{true: "détectée", false: "absente"}[od.HasLight()])
+			}
 		}
 	}
 }

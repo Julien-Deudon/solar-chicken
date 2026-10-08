@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -139,11 +140,17 @@ func (c *Client) Action(ctx context.Context, deviceID, action string) error {
 
 // SetTimes passe l'appareil en mode horaire avec les heures données (HH:MM) : une porte (openTime/closeTime)
 // ou une mangeoire (plage 1, les plages 2 à 4 sont vidées : l'appli décide seule des horaires).
-// La section est relue puis renvoyée en entier pour ne perdre aucun autre réglage.
-func (c *Client) SetTimes(ctx context.Context, deviceID, openTime, closeTime string) error {
+// La section est relue puis renvoyée en entier pour ne perdre aucun autre réglage. Le boîtier lit ces heures
+// dans son propre fuseau : s'il diffère de celui du poulailler (timezone), rien n'est écrit.
+func (c *Client) SetTimes(ctx context.Context, deviceID, openTime, closeTime, timezone string) error {
 	var cfg map[string]json.RawMessage
 	if err := c.do(ctx, http.MethodGet, "/device/"+deviceID+"/configuration", nil, &cfg, true); err != nil {
 		return err
+	}
+	var general ConfigGeneral
+	if raw, ok := cfg["general"]; ok && json.Unmarshal(raw, &general) == nil &&
+		timezone != "" && strings.Contains(general.Timezone, "/") && general.Timezone != timezone {
+		return fmt.Errorf("le boîtier est réglé sur le fuseau %s et le poulailler sur %s : horaires non écrits (corrige l'un des deux)", general.Timezone, timezone)
 	}
 	for _, name := range []string{"door", "feeder"} {
 		raw, ok := cfg[name]

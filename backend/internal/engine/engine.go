@@ -33,7 +33,7 @@ type Omlet interface {
 	ListDevices(ctx context.Context) ([]omlet.Device, error)
 	GetDevice(ctx context.Context, deviceID string) (*omlet.Device, error)
 	Action(ctx context.Context, deviceID, action string) error
-	SetTimes(ctx context.Context, deviceID, openTime, closeTime string) error
+	SetTimes(ctx context.Context, deviceID, openTime, closeTime, timezone string) error
 }
 
 // Notifier envoie les messages à l'utilisateur (Telegram).
@@ -492,11 +492,19 @@ func (e *Engine) verifyDoor(ctx context.Context, coop *models.Coop, dev *models.
 		e.notifyDone(ctx, coop, dev, ev, catchup, false)
 		return
 	}
-	if err == nil {
+	if err == nil && want == "closed" { // le défaut décrit la dernière tentative de fermeture
 		if f := d.DoorFault(); f != "" {
 			deadlines.Delete(ev.ID)
 			e.finish(ev, models.StatusFailed, t(coop, "défaut "+partName(coop, dev)+" : ", partName(coop, dev)+" fault: ")+f, f)
 			e.notify(ctx, coop, NotifyError, fmt.Sprintf(t(coop, "🚨 <b>%s</b> : %s impossible, défaut « %s ». Vérifie "+partArticle(coop, dev)+".", "🚨 <b>%s</b>: %s impossible, fault “%s”. Check the "+partName(coop, dev)+"."), dev.Name, label(coop, ev.Action), f))
+			return
+		}
+	}
+	// Appareil endormi sans nouvelles depuis l'heure prévue (ou l'envoi) : son état chez Omlet est ancien et
+	// une commande attendrait sa prochaine connexion. On relit à ce moment-là plutôt que de conclure à un échec.
+	if err == nil {
+		if at := e.wakeWait(d, ev); !at.IsZero() {
+			e.rescheduleAt(ev, at)
 			return
 		}
 	}
@@ -548,9 +556,42 @@ func (e *Engine) extraFor(d *omlet.Device) time.Duration {
 }
 
 func (e *Engine) reschedule(ev *models.PlannedEvent) {
-	next := e.now().Add(e.Timing.CheckEvery)
+	e.rescheduleAt(ev, e.now().Add(e.Timing.CheckEvery))
+}
+
+func (e *Engine) rescheduleAt(ev *models.PlannedEvent, next time.Time) {
 	e.DB.Model(ev).Update("next_check_at", next)
 	ev.NextCheckAt = &next
+}
+
+const (
+	wakeMargin  = 2 * time.Minute // relecture après la connexion annoncée d'un appareil endormi
+	maxWakeWait = 10 * time.Hour  // au-delà, la prochaine connexion annoncée n'est pas crédible
+)
+
+// wakeWait retourne quand relire un appareil endormi qui ne s'est pas connecté depuis l'heure prévue de
+// l'événement (ou depuis l'envoi d'une commande) ; zéro s'il n'y a pas lieu d'attendre : appareil connecté,
+// connecté depuis, ou connexion annoncée déjà passée sans nouvelles (là, on applique les délais habituels).
+func (e *Engine) wakeWait(d *omlet.Device, ev *models.PlannedEvent) time.Time {
+	if !d.Asleep() {
+		return time.Time{}
+	}
+	since := ev.DueAt
+	if ev.Attempts > 0 && ev.SentAt != nil && ev.SentAt.After(since) {
+		since = *ev.SentAt
+	}
+	if seen := d.LastSeen(); !seen.IsZero() && !seen.Before(since) {
+		return time.Time{}
+	}
+	now := e.now()
+	wake := d.WakesAt()
+	if wake.IsZero() || wake.Sub(now) > maxWakeWait {
+		return time.Time{}
+	}
+	if at := wake.Add(wakeMargin); at.After(now) {
+		return at
+	}
+	return time.Time{}
 }
 
 // recheck reporte le traitement d'un événement (lecture ou commande en échec).

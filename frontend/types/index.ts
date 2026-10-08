@@ -190,6 +190,9 @@ export interface DeviceStateView {
   lastOpen?: string;
   lastClose?: string;
   feedLevel?: number;
+  asleep?: boolean;
+  nextWake?: string;
+  overdue?: boolean;
   fetchedAt?: string;
   error?: string;
 }
@@ -236,10 +239,20 @@ export interface DeviceStatus {
     feedLevel: number;
   } | null;
   batteryLevel: number;
-  powerSource: 'external' | 'battery' | string;
+  /** external : secteur ; internal : piles d'une porte ; battery : mangeoire. */
+  powerSource: 'external' | 'internal' | 'battery' | string;
   firmware: string;
+  /** dBm, 0 si non connecté. */
   wifiStrength: number;
   connected: boolean;
+  /** Sur piles, entre deux connexions : l'état est celui de la dernière connexion. */
+  asleep?: boolean;
+  /** Prochaine connexion prévue (appareil endormi). */
+  nextWake?: string;
+  /** Dernière connexion (appareil endormi). */
+  lastSeen?: string;
+  /** Connexion prévue manquée. */
+  overdue?: boolean;
 }
 
 export type ActionTrigger = 'auto' | 'manual' | 'catchup' | 'fallback' | 'sync';

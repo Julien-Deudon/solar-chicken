@@ -37,8 +37,8 @@ export function parseDate(value: string | Date | null | undefined): Date | null 
     date = new Date(naive ? `${naive[1]}T${naive[2]}Z` : value);
   }
   if (Number.isNaN(date.getTime())) return null;
-  // Date « zéro » de Go (0001-01-01T00:00:00Z) = jamais
-  if (date.getUTCFullYear() <= 1) return null;
+  // Date « zéro » de Go (0001-01-01) ou d'Omlet (1970-01-01 pour une porte qui n'a jamais bougé) = jamais
+  if (date.getUTCFullYear() < 2000) return null;
   return date;
 }
 

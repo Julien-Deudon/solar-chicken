@@ -92,6 +92,15 @@ func (f *fakeOmlet) GetDevice(ctx context.Context, id string) (*omlet.Device, er
 		return nil, f.getErr
 	}
 	d := *f.devices[id]
+	// "slow" : la porte est vue en mouvement une fois, puis arrivée.
+	if f.behavior[id] == "slow" && f.devices[id].State.Door != nil {
+		switch f.devices[id].State.Door.State {
+		case "opening":
+			defer func() { f.devices[id].State.Door.State = "open" }()
+		case "closing":
+			defer func() { f.devices[id].State.Door.State = "closed" }()
+		}
+	}
 	if d.State.Door != nil {
 		door := *d.State.Door
 		d.State.Door = &door
@@ -114,6 +123,10 @@ func (f *fakeOmlet) Action(ctx context.Context, id, action string) error {
 		if d.State.Door != nil {
 			d.State.Door.Fault = "blocked"
 		}
+	case "slow":
+		if moving := map[string]string{"open": "opening", "close": "closing"}[action]; moving != "" && d.State.Door != nil {
+			d.State.Door.State = moving
+		}
 	default:
 		state := map[string]string{"open": "open", "close": "closed"}[action]
 		if state != "" && d.State.Door != nil {
@@ -126,7 +139,7 @@ func (f *fakeOmlet) Action(ctx context.Context, id, action string) error {
 	return nil
 }
 
-func (f *fakeOmlet) SetTimes(ctx context.Context, id, open, close string) error {
+func (f *fakeOmlet) SetTimes(ctx context.Context, id, open, close, tz string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.setTimes = append(f.setTimes, fmt.Sprintf("%s:%s-%s", id, open, close))
@@ -329,15 +342,75 @@ func TestRetriesThenAlertsWhenDoorDoesNotMove(t *testing.T) {
 	}
 }
 
+// Un défaut à la fermeture (Omlet le décrit pour la dernière tentative de fermeture) est signalé tout de suite.
 func TestFaultIsReportedImmediately(t *testing.T) {
 	b := newBench(t, ModeLive, false)
+	b.run(12, 0)
 	b.om.behavior["M1"] = "fault"
-	b.run(8, 30)
-	if n := b.om.count("M1:open"); n != 1 {
+	b.run(20, 30)
+	if n := b.om.count("M1:close"); n != 1 {
 		t.Fatalf("%d envois malgré le défaut", n)
 	}
 	if b.notif.with("blocked") != 1 {
 		t.Fatalf("alerte défaut attendue : %v", b.notif.msgs)
+	}
+}
+
+// Le défaut d'une fermeture ratée la veille reste affiché par Omlet : il ne doit pas faire échouer
+// l'ouverture du matin pendant que la porte s'ouvre.
+func TestStaleFaultDoesNotFailOpening(t *testing.T) {
+	b := newBench(t, ModeLive, false)
+	b.om.mu.Lock()
+	b.om.devices["M1"].State.Door.Fault = "blocked"
+	b.om.mu.Unlock()
+	b.om.behavior["M1"] = "slow"
+	b.run(8, 30)
+	if ev := b.event(b.main, models.EventOpen); ev.Status != models.StatusConfirmed {
+		t.Fatalf("ouverture : statut %s (%s)", ev.Status, ev.Note)
+	}
+	if b.notif.with("blocked") != 0 || b.notif.with("🚨") != 0 {
+		t.Fatalf("alerte à tort : %v", b.notif.msgs)
+	}
+}
+
+// Mangeoire endormie (piles) : elle ferme à l'heure prévue mais ne le signale qu'à sa prochaine connexion
+// (ici après la veille de nuit). Le serveur attend cette connexion : ni commande de secours, ni alerte.
+func TestSleepingFeederIsNotDeclaredFailed(t *testing.T) {
+	b := newBench(t, ModeLive, false)
+	feeder := models.Device{CoopID: b.coop.ID, OmletDeviceID: "F1", DeviceType: "Feeder", Role: models.RoleFeeder, Name: "Mangeoire",
+		Strategy: models.StrategyOnboard, Enabled: true, Position: 1}
+	b.e.DB.Create(&feeder)
+	rule := models.DefaultRule(models.RoleFeeder, false, &b.main.ID)
+	rule.DeviceID = feeder.ID
+	b.e.DB.Create(rule)
+	b.om.addFeeder("F1", "open")
+	b.e.Replan(context.Background())
+	closeAt := b.event(feeder, models.EventClose).DueAt
+	b.om.mu.Lock()
+	f := b.om.devices["F1"]
+	f.State.Connectivity.Connected = false
+	f.LastConnected = closeAt.Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	wake := closeAt.Add(90 * time.Minute)
+	f.NextConnection = wake.UTC().Format(time.RFC3339)
+	b.om.mu.Unlock()
+	end := closeAt.Add(80 * time.Minute).In(b.paris)
+	b.run(end.Hour(), end.Minute()) // endormie : rien n'est conclu
+	if n := b.om.count("F1:"); n != 0 || b.notif.with("n'a pas exécuté") != 0 || b.notif.with("🚨") != 0 {
+		t.Fatalf("pendant la veille : envois %v, notifications %v", b.om.actions, b.notif.msgs)
+	}
+	// Réveil : elle signale qu'elle a fermé à l'heure prévue.
+	b.om.mu.Lock()
+	f.State.Feeder.State = "closed"
+	f.LastConnected = wake.UTC().Format(time.RFC3339)
+	f.NextConnection = wake.Add(time.Hour).UTC().Format(time.RFC3339)
+	b.om.mu.Unlock()
+	after := wake.Add(10 * time.Minute).In(b.paris)
+	b.run(after.Hour(), after.Minute())
+	if ev := b.event(feeder, models.EventClose); ev.Status != models.StatusConfirmed {
+		t.Fatalf("fermeture de la mangeoire : statut %s (%s)", ev.Status, ev.Note)
+	}
+	if n := b.om.count("F1:"); n != 0 {
+		t.Fatalf("commande inutile : %v", b.om.actions)
 	}
 }
 

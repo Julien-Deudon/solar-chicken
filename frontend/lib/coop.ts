@@ -183,6 +183,9 @@ export function stateFromStatus(s: import('@/types').DeviceStatus): DeviceStateV
     lastOpen: part?.lastOpenTime,
     lastClose: part?.lastCloseTime,
     feedLevel: s.feeder?.feedLevel,
+    asleep: s.asleep,
+    nextWake: s.nextWake,
+    overdue: s.overdue,
     fetchedAt: new Date().toISOString(),
   };
 }
