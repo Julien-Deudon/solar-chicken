@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
+# Dépendances et compilation sur la machine de build ($BUILDPLATFORM) : la sortie autonome de Next.js
+# est du JavaScript pur, seule la dernière étape (copie des fichiers) dépend de l'architecture visée.
+# Évite d'émuler arm64 pour npm ci et next build (lent, et bloqué 6 h une fois sur GitHub Actions).
 
-FROM node:20-alpine AS base
+FROM --platform=$BUILDPLATFORM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -18,7 +21,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p public && npm run build
 
-# 3. Exécution (serveur Next.js autonome)
+# 3. Exécution (serveur Next.js autonome), pour l'architecture visée
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
