@@ -113,7 +113,8 @@ Outside `/api/v2`:
   `device_open`/`device_close` (relative to another door of the same coop). Default nest box rule: opens with
   the main door (`device_open` + 0) and closes 2 h before it (`device_close` − 120); every rule can be edited.
 - Optional bounds `NotBefore`/`NotAfter` (e.g. never before 08:00).
-- Light: only for devices with `hasLight` and the `command` strategy.
+- Light: for devices with `hasLight` (not in `monitor`); always switched by the server at the exact time, also
+  with the `onboard` strategy (Omlet can't switch it on before opening by itself).
 - Statuses: `pending` upcoming, `sent` sent and being checked, `confirmed` done and checked, `failed` failed
   (alert sent), `skipped` not done (see `note`), `shadow` simulated.
 - `mode = 'shadow'` (`EXECUTION_MODE=shadow`): the server computes and checks everything but sends nothing.

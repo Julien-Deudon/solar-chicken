@@ -20,6 +20,7 @@ type Config struct {
 	AllowRegistration bool
 	HAToken           string
 	SecretKey         string
+	HealthcheckURL    string // veilleur extérieur (ex. https://hc-ping.com/<uuid>), facultatif
 }
 
 func Load() Config {
@@ -39,6 +40,7 @@ func Load() Config {
 		AllowRegistration: env("ALLOW_REGISTRATION", "false") == "true",
 		HAToken:           os.Getenv("HA_TOKEN"),
 		SecretKey:         os.Getenv("SECRET_KEY"),
+		HealthcheckURL:    os.Getenv("HEALTHCHECK_URL"),
 	}
 	if c.JWTSecret == "" {
 		log.Fatal("❌ JWT_SECRET est obligatoire")

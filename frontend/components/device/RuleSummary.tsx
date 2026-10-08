@@ -15,7 +15,7 @@ export const RuleSummary: React.FC<{ device: Device; devices: Device[] }> = ({ d
   const open = getMoment(rule, 'open');
   const close = getMoment(rule, 'close');
   const lights: string[] = [];
-  if (device.hasLight && device.strategy === 'command') {
+  if (device.hasLight && device.strategy !== 'monitor') {
     if (rule.enableLightMorning && rule.lightBeforeOpenMinutes > 0) {
       lights.push(t('ruleSummary.lightOnBeforeOpen', { duration: formatDuration(rule.lightBeforeOpenMinutes) }));
     }

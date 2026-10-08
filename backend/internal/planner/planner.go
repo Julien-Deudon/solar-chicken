@@ -124,7 +124,9 @@ func PlanDay(coop *models.Coop, devices []models.Device, day time.Time) (*DayPla
 			plan.Events = append(plan.Events, Event{DeviceID: dev.ID, Action: a, DueAt: at})
 		}
 		min := func(n int) time.Duration { return time.Duration(n) * time.Minute }
-		light := dev.HasLight && dev.Strategy == models.StrategyCommand
+		// La lampe est toujours allumée et éteinte par le serveur (Omlet ne sait pas l'allumer avant l'ouverture),
+		// y compris quand la porte garde ses horaires dans son boîtier.
+		light := dev.HasLight && dev.Strategy != models.StrategyMonitor
 		if light && rule.EnableLightMorning && rule.LightBeforeOpenMinutes > 0 {
 			add(models.EventLightBeforeOpen, open.Add(-min(rule.LightBeforeOpenMinutes)))
 		}

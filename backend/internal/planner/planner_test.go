@@ -116,6 +116,27 @@ func TestDefaultNestBoxRuleFollowsMainDoor(t *testing.T) {
 	}
 }
 
+// Porte principale qui garde ses horaires dans son boîtier : heures à la minute, et la lampe reste allumée
+// par le serveur 2 min avant l'ouverture (Omlet ne sait pas le faire seul le matin).
+func TestOnboardMainDoorKeepsServerLight(t *testing.T) {
+	paris, _ := time.LoadLocation("Europe/Paris")
+	coop := &models.Coop{Latitude: 50.4, Longitude: 2.8, Timezone: "Europe/Paris"}
+	id := uuid.New()
+	door := mainDoor(id)
+	door.Strategy = models.StrategyOnboard
+	p, err := PlanDay(coop, []models.Device{door}, time.Date(2026, 10, 8, 12, 0, 0, 0, paris))
+	if err != nil {
+		t.Fatal(err)
+	}
+	open := find(t, p, id, models.EventOpen)
+	if open.Second() != 0 {
+		t.Fatalf("ouverture %s : le boîtier ne garde que HH:MM", open)
+	}
+	if light := find(t, p, id, models.EventLightBeforeOpen); !light.Equal(open.Add(-2 * time.Minute)) {
+		t.Fatalf("lampe à %s, ouverture à %s", light, open)
+	}
+}
+
 func TestNestBoxRelativeToMainDoor(t *testing.T) {
 	paris, _ := time.LoadLocation("Europe/Paris")
 	coop := &models.Coop{Latitude: 50.4, Longitude: 2.8, Timezone: "Europe/Paris"}

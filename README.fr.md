@@ -77,6 +77,18 @@ toujours ouverte après trois essais…).
 2. Envoie un message à ton bot, puis récupère ton identifiant de conversation (par exemple avec [@userinfobot](https://t.me/userinfobot)).
 3. Dans Solar Chicken : **Réglages → Notifications**, colle les deux et envoie un test.
 
+## Si le serveur lui-même tombe (facultatif)
+
+Les alertes Telegram partent de ton serveur : pendant une coupure de courant ou d'internet, personne ne te
+préviendrait. Les portes continuent seules (derniers horaires écrits, ou mode lumière d'Omlet), mais autant le savoir.
+
+1. Crée un contrôle gratuit sur [healthchecks.io](https://healthchecks.io) avec la période qui te convient
+   (par exemple 4 heures, délai de grâce 1 heure) et ajoute son intégration Telegram ou e-mail.
+2. Mets son URL de ping dans `.env` : `HEALTHCHECK_URL=https://hc-ping.com/…`, puis `docker compose up -d`.
+
+Le serveur l'appelle toutes les 5 minutes tant qu'il fonctionne (base qui répond, planificateur qui tourne).
+Quand les appels s'arrêtent plus longtemps que ta période et ton délai de grâce, healthchecks.io te prévient.
+
 ## Home Assistant (facultatif)
 
 Renseigne `HA_TOKEN` dans `.env`, décommente les lignes `ports` du service `api` dans `docker-compose.yml`,

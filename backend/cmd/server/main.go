@@ -63,6 +63,10 @@ func main() {
 	defer stop()
 	done := make(chan struct{})
 	go func() { eng.Run(ctx); close(done) }()
+	if cfg.HealthcheckURL != "" {
+		log.Printf("📡 Veilleur extérieur : un signal toutes les %s", engine.HeartbeatEvery)
+		go eng.RunHeartbeat(ctx, cfg.HealthcheckURL, version)
+	}
 
 	a := &handlers.API{DB: database, Engine: eng, Clients: clients, Version: version, Started: time.Now()}
 	router := api.SetupRouter(a, api.Options{

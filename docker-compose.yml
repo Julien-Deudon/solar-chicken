@@ -40,6 +40,7 @@ services:
       EXECUTION_MODE: ${EXECUTION_MODE:-live}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
       HA_TOKEN: ${HA_TOKEN:-}
+      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       APP_URL: ${APP_URL:-}
     # Home Assistant sur la même machine : décommenter pour exposer /ha/state en local

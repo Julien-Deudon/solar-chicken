@@ -123,7 +123,7 @@ function DeviceSettings() {
   const roleOptions: DeviceRole[] = door ? ['main_door', 'nest_box', 'door'] : ['feeder'];
   // Une mangeoire se met en veille entre deux connexions : pas de commande à l'heure exacte.
   const strategyOptions: Strategy[] = door ? ['command', 'onboard', 'monitor'] : ['onboard', 'monitor'];
-  const showLight = device.hasLight && form.strategy === 'command';
+  const showLight = device.hasLight && form.strategy !== 'monitor';
 
   const previewNote = !device.enabled
     ? t('deviceSettings.noteDisabled')

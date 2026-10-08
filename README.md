@@ -76,6 +76,18 @@ When the door doesn't confirm, you get a Telegram alert with what happened (jamm
 2. Send any message to your new bot, then get your chat ID (for example with [@userinfobot](https://t.me/userinfobot)).
 3. In Solar Chicken: **Settings → Notifications**, paste both, and send a test.
 
+## If the server itself goes down (optional)
+
+Telegram alerts come from your server: during a power or internet cut, nobody would warn you.
+The doors keep running on their own (last times written, or Omlet's light mode), but you may want to know.
+
+1. Create a free check on [healthchecks.io](https://healthchecks.io) with the period you are comfortable with
+   (for example 4 hours, grace 1 hour) and add its Telegram or e-mail integration.
+2. Put its ping URL in `.env`: `HEALTHCHECK_URL=https://hc-ping.com/…`, then `docker compose up -d`.
+
+The server pings it every 5 minutes while it works (database answering, scheduler running). When the pings
+stop for longer than your period and grace time, healthchecks.io alerts you.
+
 ## Home Assistant (optional)
 
 Set `HA_TOKEN` in `.env`, uncomment the `ports` lines of the `api` service in `docker-compose.yml`,
